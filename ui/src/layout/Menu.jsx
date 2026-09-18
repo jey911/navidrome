@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { Divider, makeStyles } from '@material-ui/core'
+import { Divider, makeStyles, MenuItem, ListItemIcon, ListItemText } from '@material-ui/core'
 import clsx from 'clsx'
 import { useTranslate, MenuItemLink, getResources } from 'react-admin'
 import ViewListIcon from '@material-ui/icons/ViewList'
 import AlbumIcon from '@material-ui/icons/Album'
+import CloudDownloadIcon from '@material-ui/icons/CloudDownload'
 import SubMenu from './SubMenu'
 import { humanize, pluralize } from 'inflection'
 import albumLists from '../album/albumLists'
@@ -139,6 +140,19 @@ const Menu = ({ dense = false }) => {
       ) : (
         resources.filter(subItems('playlist')).map(renderResourceMenuItemLink)
       )}
+      {/* Integración casa: Emepetre Downloader en la misma pestaña.
+          Enlace absoluto (no router): Caddy sirve /downloader en este origen. */}
+      <Divider />
+      <MenuItem component="a" href="/downloader" dense={dense} title="Downloader">
+        <ListItemIcon>
+          <CloudDownloadIcon />
+        </ListItemIcon>
+        {open && (
+          <ListItemText
+            primary={translate('menu.downloader', { _: 'Downloader' })}
+          />
+        )}
+      </MenuItem>
     </div>
   )
 }
