@@ -1,10 +1,10 @@
 import React from 'react'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { useMediaQuery } from '@material-ui/core'
-import { useGetOne } from 'react-admin'
-import { useDispatch } from 'react-redux'
+import { useGetOne, useTranslate } from 'react-admin'
+import { useDispatch, useSelector } from 'react-redux'
 import { useToggleLove } from '../common'
-import { openSaveQueueDialog } from '../actions'
+import { openSaveQueueDialog, setAutodjState } from '../actions'
 import PlayerToolbar from './PlayerToolbar'
 
 // Mock dependencies
@@ -18,10 +18,12 @@ vi.mock('@material-ui/core', async () => {
 
 vi.mock('react-admin', () => ({
   useGetOne: vi.fn(),
+  useTranslate: vi.fn(),
 }))
 
 vi.mock('react-redux', () => ({
   useDispatch: vi.fn(),
+  useSelector: vi.fn(),
 }))
 
 vi.mock('../common', () => ({
@@ -35,6 +37,10 @@ vi.mock('../common', () => ({
 
 vi.mock('../actions', () => ({
   openSaveQueueDialog: vi.fn(),
+  setAutodjState: vi.fn((enabled) => ({
+    type: 'SET_AUTODJ_STATE',
+    data: enabled,
+  })),
 }))
 
 vi.mock('react-hotkeys', () => ({
@@ -49,6 +55,10 @@ describe('<PlayerToolbar />', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useGetOne.mockReturnValue({ data: mockSongData, loading: false })
+    useTranslate.mockReturnValue((key, opts) => (opts && opts._) || key)
+    useSelector.mockImplementation((sel) =>
+      sel({ settings: { autodj: true } }),
+    )
     useToggleLove.mockReturnValue([mockToggleLove, false])
     useDispatch.mockReturnValue(mockDispatch)
     openSaveQueueDialog.mockReturnValue({ type: 'OPEN_SAVE_QUEUE_DIALOG' })
@@ -61,16 +71,17 @@ describe('<PlayerToolbar />', () => {
       useMediaQuery.mockReturnValue(true) // isDesktop = true
     })
 
-    it('renders desktop toolbar with both buttons', () => {
+    it('renders desktop toolbar with all buttons', () => {
       render(<PlayerToolbar id="song-1" />)
 
-      // Both buttons should be in a single list item
+      // All buttons should be in a single list item
       const listItems = screen.getAllByRole('listitem')
       expect(listItems).toHaveLength(1)
 
-      // Verify both buttons are rendered
+      // Verify all buttons are rendered
       expect(screen.getByTestId('save-queue-button')).toBeInTheDocument()
       expect(screen.getByTestId('love-button')).toBeInTheDocument()
+      expect(screen.getByTestId('autodj-button')).toBeInTheDocument()
 
       // Verify desktop classes are applied
       expect(listItems[0].className).toContain('toolbar')
@@ -102,6 +113,25 @@ describe('<PlayerToolbar />', () => {
         type: 'OPEN_SAVE_QUEUE_DIALOG',
       })
     })
+
+    it('toggles autodj off when autodj button is clicked while on', () => {
+      render(<PlayerToolbar id="song-1" />)
+
+      const autodjButton = screen.getByTestId('autodj-button')
+      fireEvent.click(autodjButton)
+
+      expect(setAutodjState).toHaveBeenCalledWith(false)
+      expect(mockDispatch).toHaveBeenCalledWith({
+        type: 'SET_AUTODJ_STATE',
+        data: false,
+      })
+    })
+
+    it('disables autodj button when isRadio is true', () => {
+      render(<PlayerToolbar id="song-1" isRadio={true} />)
+
+      expect(screen.getByTestId('autodj-button')).toBeDisabled()
+    })
   })
 
   describe('Mobile layout', () => {
@@ -114,11 +144,12 @@ describe('<PlayerToolbar />', () => {
 
       // Each button should be in its own list item
       const listItems = screen.getAllByRole('listitem')
-      expect(listItems).toHaveLength(2)
+      expect(listItems).toHaveLength(3)
 
-      // Verify both buttons are rendered
+      // Verify all buttons are rendered
       expect(screen.getByTestId('save-queue-button')).toBeInTheDocument()
       expect(screen.getByTestId('love-button')).toBeInTheDocument()
+      expect(screen.getByTestId('autodj-button')).toBeInTheDocument()
 
       // Verify mobile classes are applied
       expect(listItems[0].className).toContain('mobileListItem')

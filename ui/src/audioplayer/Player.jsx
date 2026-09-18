@@ -18,6 +18,7 @@ import config from '../config'
 import useStyle from './styles'
 import AudioTitle from './AudioTitle'
 import {
+  addTracks,
   clearQueue,
   currentPlaying,
   refreshQueue,
@@ -28,6 +29,7 @@ import {
 } from '../actions'
 import PlayerToolbar from './PlayerToolbar'
 import { sendNotification } from '../utils'
+import { fetchRandomTracks } from '../utils/autoDj'
 import subsonic from '../subsonic'
 import locale from './locale'
 import { keyMap } from '../hotkeys'
@@ -48,6 +50,13 @@ const Player = () => {
   const currentTrackIdRef = useRef(null)
   const stoppedRef = useRef(false)
   const [audioInstance, setAudioInstance] = useState(null)
+  const audioInstanceRef = useRef(null)
+  const autodjFetchingRef = useRef(false)
+  // Auto-DJ casa (default ON, persiste en settings): al acabarse la cola,
+  // seguir con temas aleatorios en vez de detenerse.
+  const autodj = useSelector((state) => state.settings.autodj !== false)
+  const autodjRef = useRef(autodj)
+  autodjRef.current = autodj
   const isDesktop = useMediaQuery('(min-width:810px)')
   const isMobilePlayer =
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -124,6 +133,32 @@ const Player = () => {
       decisionService.prefetchDecisions(nextSongIds)
     }
   }, [playerState.queue, playerState.savedPlayIndex])
+
+  // Auto-DJ: mantener siempre temas por delante. Con la cola precargada,
+  // el avance natural del reproductor (y el botón siguiente) funcionan
+  // también al darle play a un tema suelto.
+  useEffect(() => {
+    if (!autodj || !playerState.queue.length) return
+    if (playerState.current?.isRadio) return
+    const idx = playerState.queue.findIndex(
+      (item) => item.uuid === playerState.current?.uuid,
+    )
+    const remaining =
+      idx >= 0 ? playerState.queue.length - idx - 1 : playerState.queue.length
+    if (remaining > 2 || autodjFetchingRef.current) return
+    autodjFetchingRef.current = true
+    const exclude = playerState.queue.map((item) => item.trackId)
+    fetchRandomTracks(exclude, 5)
+      .then((songData) => {
+        autodjFetchingRef.current = false
+        if (Object.keys(songData).length > 0) {
+          dispatch(addTracks(songData))
+        }
+      })
+      .catch(() => {
+        autodjFetchingRef.current = false
+      })
+  }, [autodj, playerState.queue, playerState.current, dispatch])
 
   const visible = authenticated && playerState.queue.length > 0
   const isRadio = playerState.current?.isRadio || false
@@ -361,6 +396,32 @@ const Player = () => {
         .getOne('keepalive', { id: info.trackId })
         // eslint-disable-next-line no-console
         .catch((e) => console.log('Keepalive error:', e))
+      // Red de seguridad Auto-DJ: si terminó el último tema de la cola
+      // (p. ej. "siguiente" antes de que el buffer se precargue), trae
+      // aleatorios y avanza a mano para no detenerse nunca.
+      if (autodjRef.current && !info.isRadio) {
+        const st = playerStateRef.current
+        const idx = st.queue.findIndex((item) => item.uuid === info.uuid)
+        const remaining =
+          idx >= 0 ? st.queue.length - idx - 1 : st.queue.length
+        if (idx >= 0 && remaining <= 0 && !autodjFetchingRef.current) {
+          autodjFetchingRef.current = true
+          const exclude = st.queue.map((item) => item.trackId)
+          fetchRandomTracks(exclude, 3)
+            .then((songData) => {
+              autodjFetchingRef.current = false
+              if (Object.keys(songData).length > 0) {
+                dispatch(addTracks(songData))
+                setTimeout(() => {
+                  audioInstanceRef.current?.playNext?.()
+                }, 600)
+              }
+            })
+            .catch(() => {
+              autodjFetchingRef.current = false
+            })
+        }
+      }
     },
     [dispatch, dataProvider, currentTrackId],
   )
@@ -469,7 +530,10 @@ const Player = () => {
         onCoverClick={onCoverClick}
         onAudioError={onAudioError}
         onBeforeDestroy={onBeforeDestroy}
-        getAudioInstance={setAudioInstance}
+        getAudioInstance={(instance) => {
+          audioInstanceRef.current = instance
+          setAudioInstance(instance)
+        }}
       />
       <GlobalHotKeys handlers={handlers} keyMap={keyMap} allowChanges />
     </ThemeProvider>

@@ -1,12 +1,13 @@
 import React, { useCallback } from 'react'
-import { useDispatch } from 'react-redux'
-import { useGetOne } from 'react-admin'
+import { useDispatch, useSelector } from 'react-redux'
+import { useGetOne, useTranslate } from 'react-admin'
 import { GlobalHotKeys } from 'react-hotkeys'
 import IconButton from '@material-ui/core/IconButton'
 import { useMediaQuery } from '@material-ui/core'
+import RadioIcon from '@material-ui/icons/Radio'
 import { RiSaveLine } from 'react-icons/ri'
 import { LoveButton, useToggleLove } from '../common'
-import { openSaveQueueDialog } from '../actions'
+import { openSaveQueueDialog, setAutodjState } from '../actions'
 import { keyMap } from '../hotkeys'
 import { makeStyles } from '@material-ui/core/styles'
 
@@ -57,8 +58,12 @@ const useStyles = makeStyles((theme) => ({
 
 const PlayerToolbar = ({ id, isRadio }) => {
   const dispatch = useDispatch()
+  const translate = useTranslate()
   const { data, loading } = useGetOne('song', id, { enabled: !!id && !isRadio })
   const [toggleLove, toggling] = useToggleLove('song', data)
+  // Auto-DJ casa: ON por defecto (settings.autodj !== false cubre estados
+  // viejos guardados). Al terminar un tema suelto, sigue con aleatorios.
+  const autodj = useSelector((state) => state.settings.autodj !== false)
   const isDesktop = useMediaQuery('(min-width:810px)')
   const classes = useStyles()
 
@@ -99,6 +104,20 @@ const PlayerToolbar = ({ id, isRadio }) => {
     />
   )
 
+  const autodjButton = (
+    <IconButton
+      size={isDesktop ? 'small' : undefined}
+      onClick={() => dispatch(setAutodjState(!autodj))}
+      disabled={isRadio}
+      title={translate('player.autodj', { _: 'Auto-DJ: seguir con aleatorios' })}
+      data-testid="autodj-button"
+      className={buttonClass}
+      style={autodj ? { color: '#4ade80' } : undefined}
+    >
+      <RadioIcon className={!isDesktop ? classes.mobileIcon : undefined} />
+    </IconButton>
+  )
+
   return (
     <>
       <GlobalHotKeys keyMap={keyMap} handlers={handlers} allowChanges />
@@ -106,11 +125,13 @@ const PlayerToolbar = ({ id, isRadio }) => {
         <li className={`${listItemClass} item`}>
           {saveQueueButton}
           {loveButton}
+          {autodjButton}
         </li>
       ) : (
         <>
           <li className={`${listItemClass} item`}>{saveQueueButton}</li>
           <li className={`${listItemClass} item`}>{loveButton}</li>
+          <li className={`${listItemClass} item`}>{autodjButton}</li>
         </>
       )}
     </>

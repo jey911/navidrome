@@ -1,9 +1,15 @@
 export const SET_NOTIFICATIONS_STATE = 'SET_NOTIFICATIONS_STATE'
 export const SET_TOGGLEABLE_FIELDS = 'SET_TOGGLEABLE_FIELDS'
 export const SET_OMITTED_FIELDS = 'SET_OMITTED_FIELDS'
+export const SET_AUTODJ_STATE = 'SET_AUTODJ_STATE'
 
 export const setNotificationsState = (enabled) => ({
   type: SET_NOTIFICATIONS_STATE,
+  data: enabled,
+})
+
+export const setAutodjState = (enabled) => ({
+  type: SET_AUTODJ_STATE,
   data: enabled,
 })
 
