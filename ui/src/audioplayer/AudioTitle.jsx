@@ -11,7 +11,7 @@ import { DraggableTypes } from '../consts'
 const AudioTitle = React.memo(({ audioInfo, gainInfo, isMobile }) => {
   const classes = useStyle()
   const className = classes.audioTitle
-  const isDesktop = useMediaQuery('(min-width:810px)')
+  const isDesktop = useMediaQuery('(min-width:769px)')
 
   const song = audioInfo.song
   const [, dragSongRef] = useDrag(

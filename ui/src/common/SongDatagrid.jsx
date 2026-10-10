@@ -32,6 +32,17 @@ import { DraggableTypes } from '../consts'
 import { formatFullDate } from '../utils'
 
 const useStyles = makeStyles({
+  // react-admin v3 mete el <table> directamente en el flujo, sin contenedor con
+  // scroll. En pantallas estrechas las celdas (título, artista, álbum, calidad…)
+  // empujan el ancho y, como `.layout` lleva `min-width: fit-content`, la
+  // página entera se desliza en horizontal y el reproductor se va con ella.
+  // Este envoltorio acota el ancho de la tabla y deja que se desplace dentro.
+  scroller: {
+    maxWidth: '100%',
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    overscrollBehaviorX: 'contain',
+  },
   subtitle: {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -338,17 +349,19 @@ export const SongDatagrid = ({
 }) => {
   const classes = useStyles()
   return (
-    <Datagrid
-      className={classes.headerStyle}
-      isRowSelectable={(r) => !r?.missing}
-      {...rest}
-      body={
-        <SongDatagridBody
-          contextAlwaysVisible={contextAlwaysVisible}
-          showDiscSubtitles={showDiscSubtitles}
-        />
-      }
-    />
+    <div className={classes.scroller}>
+      <Datagrid
+        className={classes.headerStyle}
+        isRowSelectable={(r) => !r?.missing}
+        {...rest}
+        body={
+          <SongDatagridBody
+            contextAlwaysVisible={contextAlwaysVisible}
+            showDiscSubtitles={showDiscSubtitles}
+          />
+        }
+      />
+    </div>
   )
 }
 

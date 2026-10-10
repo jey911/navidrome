@@ -1,0 +1,206 @@
+/* Ajustes de iOS / móvil para que Navidrome se comporte como una app nativa en
+   el iPhone. Todo lo que hay aquí es puramente cosmético o de insets: no toca
+   la lógica, los selectores de datos ni la reproducción de audio.
+
+   Contexto: `viewport-fit=cover` (añadido en index.html) hace que Safari deje
+   dibujar el contenido bajo el notch y la barra de inicio. A partir de ahí
+   `env(safe-area-inset-*)` pasa a valer algo y hay que reservarlo a mano,
+   porque el layout de MUI sigue positioning a `top:0` / `bottom:0`. */
+
+/* --- 1. Comportamiento base del documento ------------------------------- */
+
+/* Safari infla el tamaño del texto al rotar si no se le dice que no lo haga
+   (WCAG 1.4.4: el usuario debe poder ampliar). */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* Elimina el flash blanco del pull-to-refresh y el rebote de la página
+     entera. El scroll interno de cada lista sigue funcionando. */
+  overscroll-behavior-y: none;
+  /* El resaltado azul por defecto sobre botones rompe el tema oscuro. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* `touch-action: manipulation` quita el retardo de 300 ms de los toques sin
+   desactivar el zoom con pellizco. */
+button,
+a,
+[role='button'],
+.MuiButtonBase-root {
+  touch-action: manipulation;
+}
+
+/* El texto no debe selectionarse al mantener pulsado un botón, pero sí en
+   títulos y letras de canciones donde copiar sí aporta. */
+button,
+.MuiIconButton-root,
+.MuiButton-root,
+.MuiListItemButton-root {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Desplazamiento con inercia en los contenedores con scroll propio. */
+.MuiTableContainer-root,
+.audio-lists-panel-content,
+.mm-library,
+.mm-song-list {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* --- 2. Alturas dinámicas ----------------------------------------------- */
+
+/* `100vh` en Safari móvil mide la altura del viewport SIN losEPHones de la
+   barra de direcciones, lo que produce un scroll fantasma. `100dvh` sí la
+   tiene en cuenta; se deja el `100vh` delante como respaldo para iOS < 15.4. */
+#root,
+.MuiDialog-paperFullScreen {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* --- 3. Anchos que desbordan ------------------------------------------- */
+
+/* react-admin fija `min-width: fit-content` en `.layout`, pensado para que en
+   escritorio la barra lateral pueda encogerse. Por debajo de 768px hace que
+   cualquier elemento ancho (tablas de canciones, la rejilla de Inicio) estire
+   la página completa y la haga deslizar en horizontal, arrastrando el
+   reproductor. Se anula solo en móvil: en escritorio no hace falta. */
+@media (max-width: 768px) {
+  #root .layout,
+  #root .RaLayout-root,
+  #root .RaLayout-appFrame,
+  #root .RaLayout-content,
+  #root .RaLayout-contentWithSidebar {
+    min-width: 0;
+  }
+}
+
+/* --- 4. Insets del notch (safe-area) ------------------------------------ */
+
+/* AppBar superior: por debajo del notch / Dynamic Island. La altura por defecto
+   de MUI es 64px, así que se agranda en la misma proporción. */
+.MuiAppBar-root {
+  box-sizing: border-box;
+  height: calc(64px + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Al girar en horizontal el notch queda a un lado: el drawer se aparta de él. */
+.MuiDrawer-paper {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Barra de reproducción de 80px: se levanta por encima del indicador de
+   inicio. El alto va en `calc()` en vez de `padding` para no romper el
+   `position: fixed` del panel. */
+.react-jinke-music-player-main .music-player-panel {
+  box-sizing: border-box;
+  height: calc(80px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Reproductor a pantalla completa: los controles y la portada no deben quedar
+   bajo el notch ni bajo la barra de inicio. */
+.react-jinke-music-player-mobile {
+  box-sizing: border-box;
+  padding-top: calc(20px + env(safe-area-inset-top));
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  padding-left: calc(20px + env(safe-area-inset-left));
+  padding-right: calc(20px + env(safe-area-inset-right));
+}
+
+/* La cola usaba `calc(100vh - 50px)!important` en la librería del reproductor:
+   con `100vh` el final de la lista quedaba por debajo de la pantalla y era
+   imposible de alcanzar. El `!important` lo hace inevitable. */
+.audio-lists-panel-mobile .audio-lists-panel-content {
+  height: calc(100vh - 50px - env(safe-area-inset-bottom)) !important;
+  height: calc(100dvh - 50px - env(safe-area-inset-bottom)) !important;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* El espacio que Layout.jsx reserva para que la lista no quede tapada por el
+   reproductor también debe sumar el inset de la barra de inicio. */
+#root > .layout,
+#root .RaLayout-appFrame {
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+}
+
+/* --- 5. Objetivos táctiles (WCAG 2.5.5 / HIG: mínimo 44x44 pt) ------------ */
+
+/* Solo en punteros gruesos: en escritorio los botones se quedan como estaban. */
+@media (hover: none) and (pointer: coarse) {
+  .MuiIconButton-root {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Filas de lista: se mantienen algo por debajo de 44px para no inflar la
+     densidad de las tablas de canciones, pero sin bajar de 40px. */
+  .MuiTableRow-root .MuiIconButton-root,
+  .MuiListItem-root .MuiIconButton-root {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  .MuiListItemButton-root,
+  .MuiListItem-root.MuiButtonBase-root {
+    min-height: 48px;
+  }
+
+  .MuiTab-root {
+    min-height: 48px;
+  }
+}
+
+/* --- 6. Respuesta visual al toque --------------------------------------- */
+
+/* En pantallas sin hover los estados `:hover` se quedan pegados tras el
+   primer toque y aparentan que un botón está activo cuando no lo está. */
+@media (hover: hover) {
+  .mm-cover-card:hover .mm-cover-play,
+  .mm-cover-card:focus-visible .mm-cover-play {
+    opacity: 0;
+  }
+}
+
+/* Al revés: donde solo hay `:hover`, en táctil se muestra siempre, porque no
+   existe el estado hover. */
+@media (hover: none) {
+  .mm-cover-play {
+    opacity: 1;
+  }
+}
+
+/* Los controles del reproductor de la librería usan `outline` en algunos
+   navegadores y se ve cortado al tocar. */
+@media (hover: none) {
+  .react-jinke-music-player-main .rc-slider-handle,
+  .react-jinke-music-player-mobile button {
+    outline: none;
+  }
+}
+
+/* --- 7. Preferencias de accesibilidad ----------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -27,7 +27,7 @@ const useStyle = makeStyles(
     },
     player: {
       display: (props) => (props.visible ? 'block' : 'none'),
-      '@media screen and (max-width:810px)': {
+      '@media screen and (max-width:768px)': {
         '& .sound-operation': {
           display: 'none',
         },

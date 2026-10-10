@@ -1,35 +1,77 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-            name="description"
-            content="Navidrome Music Server - {{.Version}}"
+    <meta name="description" content="Navidrome Music Server - {{.Version}}" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="./apple-touch-icon.png"
     />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/android-chrome-192x192.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-    <link rel="mask-icon" href="/safari-pinned-tab.svg" color="#5b5fd5">
-    <meta name="msapplication-TileColor" content="#da532c">
-    <meta name="theme-color" content="#ffffff">
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="./favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="./android-chrome-192x192.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="./favicon-16x16.png"
+    />
+    <link rel="mask-icon" href="./safari-pinned-tab.svg" color="#5b5fd5" />
+    <meta name="msapplication-TileColor" content="#07101b" />
+    <meta
+      name="theme-color"
+      content="#07101b"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      name="theme-color"
+      content="#fafafa"
+      media="(prefers-color-scheme: light)"
+    />
 
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- viewport-fit=cover: imprescindible en iPhone. Sin esto Safari recorta el
+         layout a la zona segura y env(safe-area-inset-*) siempre vale 0, por lo
+         que la barra de reproducción y la AppBar quedan bajo el notch / la barra
+         de inicio. "maximum-scale=1" NO se añade a propósito: bloquear el zoom
+         rompe la accesibilidad (WCAG 1.4.4). -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+
+    <!-- App instalada en la pantalla de inicio de iOS: modo standalone real. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Navidrome" />
     <!--
       manifest.webmanifest provides metadata used when your web app is installed on a
       user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
     -->
     <link rel="manifest" href="./manifest.webmanifest" />
-    <meta property="og:site_name" content="Navidrome">
-    <meta property="og:url" content="{{ .ShareURL }}">
-    <meta property="og:title" content="{{ .ShareDescription }}">
-    <meta property="og:image" content="{{ .ShareImageURL }}">
-    <meta property="og:image:width" content="300">
-    <meta property="og:image:height" content="300">
+    <meta property="og:site_name" content="Navidrome" />
+    <meta property="og:url" content="{{ .ShareURL }}" />
+    <meta property="og:title" content="{{ .ShareDescription }}" />
+    <meta property="og:image" content="{{ .ShareImageURL }}" />
+    <meta property="og:image:width" content="300" />
+    <meta property="og:image:height" content="300" />
     <title>Navidrome</title>
     <script>
       // Shim for libraries that check for Node.js process object
-      window.process = { env: {} };
+      window.process = { env: {} }
     </script>
     <script>
       window.__APP_CONFIG__ = {{ .AppConfig }}
