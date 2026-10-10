@@ -10,7 +10,13 @@ import useCurrentTheme from '../themes/useCurrentTheme'
 import { useSearchRefocus } from '../common'
 
 const useStyles = makeStyles({
-  root: { paddingBottom: (props) => (props.addPadding ? '80px' : 0) },
+  // 80px es la altura de la barra de reproducción. En iPhone, con
+  // `viewport-fit=cover`, hay que sumar además el inset de la barra de inicio
+  // o el final de la lista queda tapado por el reproductor.
+  root: {
+    paddingBottom: (props) =>
+      props.addPadding ? 'calc(80px + env(safe-area-inset-bottom))' : 0,
+  },
 })
 
 const Layout = (props) => {

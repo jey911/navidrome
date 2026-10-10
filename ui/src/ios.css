@@ -5,7 +5,7 @@
    Contexto: `viewport-fit=cover` (añadido en index.html) hace que Safari deje
    dibujar el contenido bajo el notch y la barra de inicio. A partir de ahí
    `env(safe-area-inset-*)` pasa a valer algo y hay que reservarlo a mano,
-   porque el layout de MUI sigue positioning a `top:0` / `bottom:0`. */
+   porque el layout de MUI sigue posicionando a `top:0` / `bottom:0`. */
 
 /* --- 1. Comportamiento base del documento ------------------------------- */
 
@@ -54,19 +54,13 @@ button,
 
 /* --- 2. Alturas dinámicas ----------------------------------------------- */
 
-/* `100vh` en Safari móvil mide la altura del viewport SIN losEPHones de la
-   barra de direcciones, lo que produce un scroll fantasma. `100dvh` sí la
-   tiene en cuenta; se deja el `100vh` delante como respaldo para iOS < 15.4. */
+/* `100vh` en Safari móvil mide la altura del viewport sin descontar la barra
+   de direcciones, lo que produce un scroll fantasma. `100dvh` sí la tiene en
+   cuenta; se deja el `100vh` delante como respaldo para iOS < 15.4. */
 #root,
 .MuiDialog-paperFullScreen {
   min-height: 100vh;
   min-height: 100dvh;
-}
-
-html,
-body,
-#root {
-  height: 100%;
 }
 
 /* --- 3. Anchos que desbordan ------------------------------------------- */
@@ -128,13 +122,6 @@ body,
   height: calc(100vh - 50px - env(safe-area-inset-bottom)) !important;
   height: calc(100dvh - 50px - env(safe-area-inset-bottom)) !important;
   padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* El espacio que Layout.jsx reserva para que la lista no quede tapada por el
-   reproductor también debe sumar el inset de la barra de inicio. */
-#root > .layout,
-#root .RaLayout-appFrame {
-  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 
 /* --- 5. Objetivos táctiles (WCAG 2.5.5 / HIG: mínimo 44x44 pt) ------------ */

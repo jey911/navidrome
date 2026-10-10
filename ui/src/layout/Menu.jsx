@@ -32,7 +32,8 @@ const useStyles = makeStyles((theme) => ({
       easing: theme.transitions.easing.sharp,
       duration: theme.transitions.duration.leavingScreen,
     }),
-    paddingBottom: (props) => (props.addPadding ? '80px' : '20px'),
+    paddingBottom: (props) =>
+      props.addPadding ? 'calc(80px + env(safe-area-inset-bottom))' : '20px',
   },
   open: {
     width: 240,
