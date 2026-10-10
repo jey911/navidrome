@@ -23,7 +23,10 @@ const useStyles = makeStyles(
     bgContainer: {
       display: 'flex',
       height: '15rem',
-      width: '100vw',
+      // `100vw` incluye el ancho de la barra de desplazamiento vertical, así
+      // que el héroe se salía de la pantalla y la página se podía desplazar en
+      // horizontal. `100%` da el mismo resultado sin desbordar.
+      width: '100%',
       padding: 'unset',
       backdropFilter: 'blur(1px)',
       backgroundPosition: '50% 30%',
@@ -48,7 +51,7 @@ const useStyles = makeStyles(
       '& p': {
         whiteSpace: ({ expanded }) => (expanded ? 'unset' : 'nowrap'),
         overflow: 'hidden',
-        width: '95vw',
+        width: '95%',
         textOverflow: 'ellipsis',
       },
     },

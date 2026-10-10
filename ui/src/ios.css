@@ -54,9 +54,21 @@ button,
 
 /* --- 2. Alturas dinámicas ----------------------------------------------- */
 
-/* `100vh` en Safari móvil mide la altura del viewport sin descontar la barra
-   de direcciones, lo que produce un scroll fantasma. `100dvh` sí la tiene en
-   cuenta; se deja el `100vh` delante como respaldo para iOS < 15.4. */
+/* Altura del viewport que descuenta la barra de direcciones de Safari. En una
+   hoja de estilo bastaría con declarar `100vh` y `100dvh` seguidas, pero los
+   componentes de Navidrome definen sus estilos en objetos JS, donde dos claves
+   iguales se pisan y el fallback se pierde. Esta variable sí goza de la
+   cascada: `100vh` por defecto, `100dvh` donde se soporta. */
+:root {
+  --nd-vh: 100vh;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --nd-vh: 100dvh;
+  }
+}
+
 #root,
 .MuiDialog-paperFullScreen {
   min-height: 100vh;

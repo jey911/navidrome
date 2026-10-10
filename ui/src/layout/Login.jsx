@@ -29,7 +29,10 @@ const useStyles = makeStyles(
     main: {
       display: 'flex',
       flexDirection: 'column',
-      minHeight: '100vh',
+      // `var(--nd-vh)` = 100vh, o 100dvh donde se soporta (ver ios.css), que
+      // descuenta la barra de direcciones: con 100vh el formulario se empuja
+      // fuera de la pantalla al abrir el teclado.
+      minHeight: 'var(--nd-vh)',
       alignItems: 'center',
       justifyContent: 'flex-start',
       background: `url(${config.loginBackgroundURL})`,
