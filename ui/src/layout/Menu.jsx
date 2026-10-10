@@ -1,11 +1,22 @@
 import React, { useState } from 'react'
 import { useSelector } from 'react-redux'
-import { Divider, makeStyles, MenuItem, ListItemIcon, ListItemText } from '@material-ui/core'
+import {
+  Divider,
+  makeStyles,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+} from '@material-ui/core'
 import clsx from 'clsx'
 import { useTranslate, MenuItemLink, getResources } from 'react-admin'
 import ViewListIcon from '@material-ui/icons/ViewList'
 import AlbumIcon from '@material-ui/icons/Album'
+import HomeIcon from '@material-ui/icons/Home'
+import FolderIcon from '@material-ui/icons/Folder'
 import CloudDownloadIcon from '@material-ui/icons/CloudDownload'
+import PhonelinkIcon from '@material-ui/icons/Phonelink'
+import HelpOutlineIcon from '@material-ui/icons/HelpOutline'
+import HelpWelcome from '../help/HelpWelcome'
 import SubMenu from './SubMenu'
 import { humanize, pluralize } from 'inflection'
 import albumLists from '../album/albumLists'
@@ -114,6 +125,16 @@ const Menu = ({ dense = false }) => {
       })}
     >
       {open && <LibrarySelector />}
+      {/* Inicio casa: portada estilo Mi Música con lo que suena, cola y biblioteca. */}
+      <MenuItemLink
+        to="/"
+        activeClassName={classes.active}
+        primaryText={translate('menu.home', { _: 'Inicio' })}
+        leftIcon={<HomeIcon />}
+        sidebarIsOpen={open}
+        dense={dense}
+        exact
+      />
       <SubMenu
         handleToggle={() => handleToggle('menuAlbumList')}
         isOpen={state.menuAlbumList}
@@ -125,6 +146,17 @@ const Menu = ({ dense = false }) => {
         {Object.keys(albumLists).map((type) =>
           renderAlbumMenuItemLink(type, albumLists[type]),
         )}
+        {/* Carpetas casa: navega Género/Artista/Álbum del disco y reproduce
+            carpetas o temas sin entrar a fichas. */}
+        <MenuItemLink
+          to="/folders"
+          activeClassName={classes.active}
+          primaryText={translate('menu.folders', { _: 'Carpetas' })}
+          leftIcon={<FolderIcon />}
+          sidebarIsOpen={open}
+          dense={dense}
+          exact
+        />
       </SubMenu>
       {resources.filter(subItems(undefined)).map(renderResourceMenuItemLink)}
       {config.devSidebarPlaylists && open ? (
@@ -143,7 +175,12 @@ const Menu = ({ dense = false }) => {
       {/* Integración casa: Emepetre Downloader en la misma pestaña.
           Enlace absoluto (no router): Caddy sirve /downloader en este origen. */}
       <Divider />
-      <MenuItem component="a" href="/downloader" dense={dense} title="Downloader">
+      <MenuItem
+        component="a"
+        href="/downloader"
+        dense={dense}
+        title="Downloader"
+      >
         <ListItemIcon>
           <CloudDownloadIcon />
         </ListItemIcon>
@@ -153,6 +190,26 @@ const Menu = ({ dense = false }) => {
           />
         )}
       </MenuItem>
+      {/* Mando móvil casa: controlar el reproductor de otro equipo. */}
+      <MenuItemLink
+        to="/remote"
+        activeClassName={classes.active}
+        primaryText={translate('menu.remote', { _: 'Control remoto' })}
+        leftIcon={<PhonelinkIcon />}
+        sidebarIsOpen={open}
+        dense={dense}
+      />
+      {/* Ayuda nativa: guía de Auto-DJ, mando móvil y Downloader. */}
+      <MenuItemLink
+        to="/help"
+        activeClassName={classes.active}
+        primaryText={translate('menu.help', { _: 'Ayuda' })}
+        leftIcon={<HelpOutlineIcon />}
+        sidebarIsOpen={open}
+        dense={dense}
+      />
+      {/* Bienvenida una vez por versión, sin exigir visitar Ayuda. */}
+      <HelpWelcome />
     </div>
   )
 }

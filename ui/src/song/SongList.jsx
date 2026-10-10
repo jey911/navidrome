@@ -22,6 +22,7 @@ import {
   SongInfo,
   SongTitleField,
   SongSimpleList,
+  SongPlayButton,
   RatingField,
   useResourceRefresh,
   ArtistLinkField,
@@ -225,6 +226,7 @@ const SongList = (props) => {
             contextAlwaysVisible={!isDesktop}
             classes={{ row: classes.row }}
           >
+            <SongPlayButton onPlay={(record) => dispatch(setTrack(record))} />
             <SongTitleField source="title" showTrackNumbers={false} />
             {columns}
             <SongContextMenu

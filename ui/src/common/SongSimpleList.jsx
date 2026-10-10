@@ -5,6 +5,8 @@ import ListItem from '@material-ui/core/ListItem'
 import ListItemIcon from '@material-ui/core/ListItemIcon'
 import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction'
 import ListItemText from '@material-ui/core/ListItemText'
+import IconButton from '@material-ui/core/IconButton'
+import PlayArrowIcon from '@material-ui/icons/PlayArrow'
 import { makeStyles } from '@material-ui/core/styles'
 import { sanitizeListRestProps } from 'react-admin'
 import { DurationField, SongContextMenu, RatingField } from './index'
@@ -73,6 +75,20 @@ export const SongSimpleList = ({
             data[id] && (
               <span key={id} onClick={() => dispatch(setTrack(data[id]))}>
                 <ListItem className={classes.listItem} button={true}>
+                  <ListItemIcon>
+                    <IconButton
+                      size="small"
+                      title="Reproducir"
+                      aria-label="play"
+                      data-testid="row-play"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        dispatch(setTrack(data[id]))
+                      }}
+                    >
+                      <PlayArrowIcon fontSize="small" />
+                    </IconButton>
+                  </ListItemIcon>
                   <ListItemText
                     primary={
                       <div className={classes.title}>{data[id].title}</div>

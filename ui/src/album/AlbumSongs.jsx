@@ -25,6 +25,7 @@ import {
   SongContextMenu,
   SongDatagrid,
   SongInfo,
+  SongPlayButton,
   SongTitleField,
   useResourceRefresh,
   useSelectedFields,
@@ -192,6 +193,9 @@ const AlbumSongs = (props) => {
             contextAlwaysVisible={!isDesktop}
             classes={{ row: classes.row }}
           >
+            <SongPlayButton
+              onPlay={(record) => dispatch(playTracks(data, ids, record.id))}
+            />
             {columns}
             <SongContextMenu
               source={'starred'}

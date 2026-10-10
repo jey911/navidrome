@@ -16,6 +16,7 @@ import {
   ArtistLinkField,
   CoverArtAvatar,
   DurationField,
+  PlayButton,
   RangeField,
   SimpleList,
   AlbumContextMenu,
@@ -168,11 +169,17 @@ const AlbumTableView = ({
         </span>
       )}
       linkType={'show'}
-      rightIcon={(r) => <AlbumContextMenu record={r} />}
+      rightIcon={(r) => (
+        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+          {!r.missing && <PlayButton record={r} size="small" />}
+          <AlbumContextMenu record={r} />
+        </span>
+      )}
       {...rest}
     />
   ) : (
     <AlbumDatagrid rowClick={'show'} classes={{ row: classes.row }} {...rest}>
+      <PlayButton />
       <CoverArtAvatar source="id" variant="square" />
       <TextField source="name" />
       {columns}

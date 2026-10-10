@@ -4,6 +4,7 @@ import {
   PLAYER_SYNC_QUEUE,
   PLAYER_CURRENT,
   PLAYER_REFRESH_QUEUE,
+  PLAYER_REMOVE_TRACK,
 } from '../actions'
 
 describe('playerReducer', () => {
@@ -222,6 +223,47 @@ describe('playerReducer', () => {
       const action = { type: PLAYER_REFRESH_QUEUE, data: {} }
       const result = playerReducer(state, action)
       expect(result.playIndex).toBe(0)
+    })
+  })
+
+  describe('PLAYER_REMOVE_TRACK', () => {
+    const state = {
+      queue: [
+        { trackId: 's1', uuid: 'u1', name: 'Song 1' },
+        { trackId: 's2', uuid: 'u2', name: 'Song 2' },
+        { trackId: 's3', uuid: 'u3', name: 'Song 3' },
+      ],
+      current: { trackId: 's1', uuid: 'u1' },
+      savedPlayIndex: 0,
+      clear: false,
+      volume: 1,
+    }
+
+    it('filtra el tema futuro y conserva el actual y el índice', () => {
+      const result = playerReducer(state, {
+        type: PLAYER_REMOVE_TRACK,
+        data: { trackId: 's3' },
+      })
+      expect(result.queue.map((i) => i.trackId)).toEqual(['s1', 's2'])
+      expect(result.savedPlayIndex).toBe(0)
+      expect(result.current).toEqual(state.current)
+      expect(result.clear).toBe(false)
+    })
+
+    it('no toca nada si el trackId no está en cola', () => {
+      const result = playerReducer(state, {
+        type: PLAYER_REMOVE_TRACK,
+        data: { trackId: 'zzz' },
+      })
+      expect(result).toBe(state)
+    })
+
+    it('no hace nada sin trackId', () => {
+      const result = playerReducer(state, {
+        type: PLAYER_REMOVE_TRACK,
+        data: {},
+      })
+      expect(result).toBe(state)
     })
   })
 })

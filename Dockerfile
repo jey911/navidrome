@@ -70,6 +70,8 @@ RUN --mount=type=bind,source=. \
     xx-go --wrap
     export CGO_ENABLED=1
     BUILD_TAGS=$(./release/build-tags.sh)
+    # El fork agrega endpoints del mando: no publicar una imagen sin probarlos.
+    go test -tags="${BUILD_TAGS}" ./server/nativeapi -ginkgo.focus='Remote Endpoints'
     # -latomic is required on 32-bit arm (arm/v6, arm/v7) so SQLite's 64-bit atomics resolve.
     go build -tags="${BUILD_TAGS}" -ldflags="-w -s \
         -linkmode=external -extldflags '-latomic' \
@@ -181,4 +183,3 @@ WORKDIR /app
 ENV PATH="/app:${PATH}"
 
 ENTRYPOINT ["/app/navidrome"]
-

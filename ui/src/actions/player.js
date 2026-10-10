@@ -1,5 +1,6 @@
 export const PLAYER_ADD_TRACKS = 'PLAYER_ADD_TRACKS'
 export const PLAYER_PLAY_NEXT = 'PLAYER_PLAY_NEXT'
+export const PLAYER_REMOVE_TRACK = 'PLAYER_REMOVE_TRACK'
 export const PLAYER_SET_TRACK = 'PLAYER_SET_TRACK'
 export const PLAYER_SYNC_QUEUE = 'PLAYER_SYNC_QUEUE'
 export const PLAYER_CLEAR_QUEUE = 'PLAYER_CLEAR_QUEUE'
@@ -44,6 +45,13 @@ export const playNext = (data, ids) => {
     data: songs,
   }
 }
+
+// Quita de la cola un tema por trackId (borrado desde el mando).
+// Solo se usa para temas POR DELANTE del actual: no toca índices en curso.
+export const removeTrack = (trackId) => ({
+  type: PLAYER_REMOVE_TRACK,
+  data: { trackId },
+})
 
 export const shuffle = (data) => {
   const ids = Object.keys(data)

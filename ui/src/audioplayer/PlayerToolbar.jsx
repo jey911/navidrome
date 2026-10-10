@@ -5,6 +5,7 @@ import { GlobalHotKeys } from 'react-hotkeys'
 import IconButton from '@material-ui/core/IconButton'
 import { useMediaQuery } from '@material-ui/core'
 import RadioIcon from '@material-ui/icons/Radio'
+import PhonelinkIcon from '@material-ui/icons/Phonelink'
 import { RiSaveLine } from 'react-icons/ri'
 import { LoveButton, useToggleLove } from '../common'
 import { openSaveQueueDialog, setAutodjState } from '../actions'
@@ -56,7 +57,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-const PlayerToolbar = ({ id, isRadio }) => {
+const PlayerToolbar = ({ id, isRadio, remoteEnabled, onToggleRemote }) => {
   const dispatch = useDispatch()
   const translate = useTranslate()
   const { data, loading } = useGetOne('song', id, { enabled: !!id && !isRadio })
@@ -64,7 +65,7 @@ const PlayerToolbar = ({ id, isRadio }) => {
   // Auto-DJ casa: ON por defecto (settings.autodj !== false cubre estados
   // viejos guardados). Al terminar un tema suelto, sigue con aleatorios.
   const autodj = useSelector((state) => state.settings.autodj !== false)
-  const isDesktop = useMediaQuery('(min-width:810px)')
+  const isDesktop = useMediaQuery('(min-width:769px)')
   const classes = useStyles()
 
   const handlers = {
@@ -109,12 +110,32 @@ const PlayerToolbar = ({ id, isRadio }) => {
       size={isDesktop ? 'small' : undefined}
       onClick={() => dispatch(setAutodjState(!autodj))}
       disabled={isRadio}
-      title={translate('player.autodj', { _: 'Auto-DJ: seguir con aleatorios' })}
+      title={translate('player.autodj', {
+        _: 'Auto-DJ: al terminar sigue con el mismo género/artista (🔀 para aleatorio)',
+      })}
       data-testid="autodj-button"
       className={buttonClass}
       style={autodj ? { color: '#4ade80' } : undefined}
     >
       <RadioIcon className={!isDesktop ? classes.mobileIcon : undefined} />
+    </IconButton>
+  )
+
+  // Mando móvil casa: el teléfono controla este reproductor (el audio
+  // sigue sonando aquí). Al activar muestra el código de 4 dígitos.
+  const remoteButton = (
+    <IconButton
+      size={isDesktop ? 'small' : undefined}
+      onClick={onToggleRemote}
+      disabled={isRadio || !onToggleRemote}
+      title={translate('player.remote', {
+        _: 'Mando móvil: controlar este reproductor desde el teléfono',
+      })}
+      data-testid="remote-button"
+      className={buttonClass}
+      style={remoteEnabled ? { color: '#4ade80' } : undefined}
+    >
+      <PhonelinkIcon className={!isDesktop ? classes.mobileIcon : undefined} />
     </IconButton>
   )
 
@@ -126,12 +147,14 @@ const PlayerToolbar = ({ id, isRadio }) => {
           {saveQueueButton}
           {loveButton}
           {autodjButton}
+          {remoteButton}
         </li>
       ) : (
         <>
           <li className={`${listItemClass} item`}>{saveQueueButton}</li>
           <li className={`${listItemClass} item`}>{loveButton}</li>
           <li className={`${listItemClass} item`}>{autodjButton}</li>
+          <li className={`${listItemClass} item`}>{remoteButton}</li>
         </>
       )}
     </>

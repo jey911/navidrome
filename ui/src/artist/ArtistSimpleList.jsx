@@ -8,7 +8,12 @@ import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction'
 import ListItemText from '@material-ui/core/ListItemText'
 import { makeStyles } from '@material-ui/core/styles'
 import { sanitizeListRestProps } from 'react-admin'
-import { ArtistContextMenu, CoverArtAvatar, RatingField } from '../common'
+import {
+  ArtistContextMenu,
+  CoverArtAvatar,
+  PlayButton,
+  RatingField,
+} from '../common'
 import config from '../config'
 
 const useStyles = makeStyles(
@@ -69,7 +74,21 @@ const ArtistSimpleList = ({
                   />
                   <ListItemSecondaryAction className={classes.rightIcon}>
                     <ListItemIcon>
-                      <ArtistContextMenu record={data[id]} />
+                      <span
+                        style={{ display: 'inline-flex', alignItems: 'center' }}
+                      >
+                        {!data[id].missing && (
+                          <PlayButton
+                            record={data[id]}
+                            size="small"
+                            songFilter={(r) => ({
+                              album_artist_id: r.id,
+                              missing: false,
+                            })}
+                          />
+                        )}
+                        <ArtistContextMenu record={data[id]} />
+                      </span>
                     </ListItemIcon>
                   </ListItemSecondaryAction>
                 </ListItem>

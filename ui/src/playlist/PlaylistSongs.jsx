@@ -20,6 +20,7 @@ import {
   SongInfo,
   SongContextMenu,
   SongDatagrid,
+  SongPlayButton,
   SongTitleField,
   QualityInfo,
   useSelectedFields,
@@ -229,6 +230,9 @@ const PlaylistSongs = ({ playlistId, readOnly, actions, ...props }) => {
               contextAlwaysVisible={!isDesktop}
               classes={{ row: classes.row }}
             >
+              <SongPlayButton
+                onPlay={(record) => dispatch(playTracks(data, ids, record.id))}
+              />
               {columns}
               <SongContextMenu
                 onAddToPlaylist={onAddToPlaylist}

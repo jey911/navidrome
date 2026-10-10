@@ -24,6 +24,9 @@ import library from './library'
 import plugin from './plugin'
 import { Player } from './audioplayer'
 import customRoutes from './routes'
+import HomeView from './home/HomeView'
+import './mm-theme.css'
+import './ios.css'
 import {
   libraryReducer,
   themeReducer,
@@ -121,6 +124,7 @@ const Admin = (props) => {
       layout={Layout}
       loginPage={Login}
       logoutButton={Logout}
+      dashboard={HomeView}
       {...props}
     >
       {(permissions) => [

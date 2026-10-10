@@ -7,6 +7,7 @@ import {
   PLAYER_CURRENT,
   PLAYER_PLAY_NEXT,
   PLAYER_PLAY_TRACKS,
+  PLAYER_REMOVE_TRACK,
   PLAYER_SET_TRACK,
   PLAYER_SET_VOLUME,
   PLAYER_SYNC_QUEUE,
@@ -156,6 +157,21 @@ const reducePlayNext = (state, { data }) => {
   }
 }
 
+// Quita un tema futuro de la cola (borrado de archivo desde el mando).
+// No reordena ni toca la selección en curso: solo filtra por trackId y
+// recalcula savedPlayIndex contra el tema actual.
+const reduceRemoveTrack = (state, { data: { trackId } }) => {
+  if (!trackId) return state
+  const queue = state.queue.filter((item) => item.trackId !== trackId)
+  if (queue.length === state.queue.length) return state
+  const current = state.current || {}
+  return {
+    ...state,
+    queue,
+    savedPlayIndex: queue.findIndex((item) => item.uuid === current.uuid),
+  }
+}
+
 const reduceSetVolume = (state, { data: { volume } }) => {
   return {
     ...state,
@@ -221,6 +237,8 @@ export const playerReducer = (previousState = initialState, payload) => {
       return reduceAddTracks(previousState, payload)
     case PLAYER_PLAY_NEXT:
       return reducePlayNext(previousState, payload)
+    case PLAYER_REMOVE_TRACK:
+      return reduceRemoveTrack(previousState, payload)
     case PLAYER_SET_VOLUME:
       return reduceSetVolume(previousState, payload)
     case PLAYER_SYNC_QUEUE:

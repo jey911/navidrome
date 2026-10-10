@@ -56,9 +56,7 @@ describe('<PlayerToolbar />', () => {
     vi.clearAllMocks()
     useGetOne.mockReturnValue({ data: mockSongData, loading: false })
     useTranslate.mockReturnValue((key, opts) => (opts && opts._) || key)
-    useSelector.mockImplementation((sel) =>
-      sel({ settings: { autodj: true } }),
-    )
+    useSelector.mockImplementation((sel) => sel({ settings: { autodj: true } }))
     useToggleLove.mockReturnValue([mockToggleLove, false])
     useDispatch.mockReturnValue(mockDispatch)
     openSaveQueueDialog.mockReturnValue({ type: 'OPEN_SAVE_QUEUE_DIALOG' })
@@ -132,6 +130,26 @@ describe('<PlayerToolbar />', () => {
 
       expect(screen.getByTestId('autodj-button')).toBeDisabled()
     })
+
+    it('calls onToggleRemote when remote button is clicked', () => {
+      const onToggleRemote = vi.fn()
+      render(
+        <PlayerToolbar
+          id="song-1"
+          remoteEnabled={false}
+          onToggleRemote={onToggleRemote}
+        />,
+      )
+
+      fireEvent.click(screen.getByTestId('remote-button'))
+      expect(onToggleRemote).toHaveBeenCalledTimes(1)
+    })
+
+    it('disables remote button when isRadio is true', () => {
+      render(<PlayerToolbar id="song-1" isRadio={true} />)
+
+      expect(screen.getByTestId('remote-button')).toBeDisabled()
+    })
   })
 
   describe('Mobile layout', () => {
@@ -144,12 +162,13 @@ describe('<PlayerToolbar />', () => {
 
       // Each button should be in its own list item
       const listItems = screen.getAllByRole('listitem')
-      expect(listItems).toHaveLength(3)
+      expect(listItems).toHaveLength(4)
 
       // Verify all buttons are rendered
       expect(screen.getByTestId('save-queue-button')).toBeInTheDocument()
       expect(screen.getByTestId('love-button')).toBeInTheDocument()
       expect(screen.getByTestId('autodj-button')).toBeInTheDocument()
+      expect(screen.getByTestId('remote-button')).toBeInTheDocument()
 
       // Verify mobile classes are applied
       expect(listItems[0].className).toContain('mobileListItem')

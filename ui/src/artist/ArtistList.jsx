@@ -24,6 +24,7 @@ import {
   ArtistContextMenu,
   CoverArtAvatar,
   List,
+  PlayButton,
   useGetHandleArtistClick,
   RatingField,
   useSelectedFields,
@@ -173,6 +174,9 @@ const ArtistListView = ({ hasShow, hasEdit, hasList, width, ...rest }) => {
     />
   ) : (
     <ArtistDatagrid rowClick={handleArtistLink} classes={{ row: classes.row }}>
+      <PlayButton
+        songFilter={(r) => ({ album_artist_id: r.id, missing: false })}
+      />
       <CoverArtAvatar source="id" />
       <TextField source="name" />
       <FunctionField

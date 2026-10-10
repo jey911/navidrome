@@ -68,6 +68,25 @@ type NowPlayingCount struct {
 	Count int `json:"count"`
 }
 
+// Control remoto casa: órdenes del móvil al reproductor web (el laptop
+// filtra por su SessionID) y estado publicado para pintar el mando.
+type RemoteCommand struct {
+	baseEvent
+	ID        string `json:"id"`
+	SessionID string `json:"sessionId"`
+	Action    string `json:"action"`
+	Payload   string `json:"payload,omitempty"`
+}
+
+type RemoteState struct {
+	baseEvent
+	SessionID string `json:"sessionId"`
+	TrackID   string `json:"trackId,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Artist    string `json:"artist,omitempty"`
+	Playing   bool   `json:"playing"`
+}
+
 func (rr *RefreshResource) With(resource string, ids ...string) *RefreshResource {
 	if rr.resources == nil {
 		rr.resources = make(map[string][]string)
