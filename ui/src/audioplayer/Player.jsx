@@ -185,16 +185,22 @@ const Player = () => {
       el && Number.isFinite(el.duration) && el.duration > 0
         ? Math.floor(el.duration * 1000)
         : undefined
+    const currentIndex = st.queue.findIndex(
+      (item) => item.uuid === st.current?.uuid,
+    )
+    const pendingManual = st.queue
+      .slice(currentIndex + 1)
+      .some((item) => item.manualQueued)
+    const nextSong =
+      st.mode === 'singleLoop' && !pendingManual
+        ? song
+        : st.queue[currentIndex + 1]?.song ||
+          (st.mode === 'orderLoop' ? st.queue[0]?.song : null)
+    const randomNext = st.mode === 'shufflePlay' && !pendingManual
     const snapshot = {
       trackId: st.current?.trackId || song.id || '',
-      nextTitle:
-        st.queue[
-          st.queue.findIndex((item) => item.uuid === st.current?.uuid) + 1
-        ]?.song?.title || '',
-      nextArtist:
-        st.queue[
-          st.queue.findIndex((item) => item.uuid === st.current?.uuid) + 1
-        ]?.song?.artist || '',
+      nextTitle: randomNext ? 'Selección aleatoria' : nextSong?.title || '',
+      nextArtist: randomNext ? '' : nextSong?.artist || '',
       title: song.title || '',
       artist: song.artist || '',
       playing: !!(el && !el.paused),
