@@ -80,3 +80,24 @@
     font-size: 16px;
   }
 }
+
+.mm-remote-volume {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: #a6b8d2;
+}
+.mm-remote-volume input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  accent-color: #4b9cff;
+  cursor: pointer;
+}
+.mm-remote-volume output {
+  min-width: 42px;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}

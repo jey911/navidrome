@@ -1,7 +1,7 @@
 import {
   addTracks,
   playNext,
-  playTracks,
+  manualQueue,
   removeTrack,
   setTrack,
 } from '../actions'
@@ -128,7 +128,7 @@ export const deleteTrackViaEmepetre = async (relPath) => {
 // Ejecuta una orden del mando móvil sobre el reproductor local.
 // Devuelve true si la acción era conocida y se aplicó (aunque falle async).
 // NUNCA reproduce en el móvil: esta función corre en el equipo emparejado.
-// playTrack reemplaza la cola (reproducir ahora); playNextTrack inserta
+// playTrack reproduce solo el tema elegido y conserva peticiones manuales; playNextTrack inserta
 // justo después del tema actual; queueTrack mantiene las peticiones manuales en FIFO. La cola manual
 // siempre suena antes que el relleno automático (artista=>género).
 // deleteTrack borra el ARCHIVO de la biblioteca vía Emepetre (irreversible;
@@ -155,7 +155,10 @@ export const runRemoteCommand = (
       enqueue(() =>
         dataProvider
           .getOne('song', { id })
-          .then(({ data }) => dispatch(action({ [data.id || id]: data })))
+          .then(({ data }) => {
+            dispatch(manualQueue())
+            dispatch(action({ [data.id || id]: data }))
+          })
           .catch(() => {}),
       )
       return true
@@ -195,39 +198,15 @@ export const runRemoteCommand = (
     case 'playTrack': {
       const id = resolvePlayTrackId(payload)
       if (!id || !dataProvider || !dispatch) return false
-      const contextIds = resolveContextIds(payload)
-      if (contextIds.length > 1) {
-        // Con contexto: encolar la lista de resultados y empezar en el
-        // elegido (respetando su orden). Siguiente/anterior quedan dentro.
-        const ordered = contextIds.includes(id)
-          ? contextIds
-          : [id, ...contextIds]
-        enqueue(() =>
-          dataProvider
-            .getMany('song', { ids: ordered })
-            .then(({ data: records }) => {
-              const byId = {}
-              for (const r of records || []) {
-                if (r?.id) byId[r.id] = r
-              }
-              const present = ordered.filter((cid) => byId[cid])
-              if (present.length === 0) return
-              const map = {}
-              present.forEach((cid) => {
-                map[cid] = byId[cid]
-              })
-              dispatch(playTracks(map, present, byId[id] ? id : present[0]))
-            })
-            .catch(() => {}),
-        )
-      } else {
-        enqueue(() =>
-          dataProvider
-            .getOne('song', { id })
-            .then(({ data }) => dispatch(setTrack(data)))
-            .catch(() => {}),
-        )
-      }
+      enqueue(() =>
+        dataProvider
+          .getOne('song', { id })
+          .then(({ data }) => {
+            dispatch(manualQueue())
+            dispatch(setTrack(data))
+          })
+          .catch(() => {}),
+      )
       break
     }
     case 'playNextTrack': {

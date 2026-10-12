@@ -264,10 +264,11 @@ const Player = () => {
     }
     announceSession('Reproductor web')
       .then(({ sessionId, code }) => {
+        dispatch(manualQueue())
         setRemote({ enabled: true, sessionId, code, showCode: true })
       })
       .catch(() => {})
-  }, [])
+  }, [dispatch])
 
   // SSE: órdenes en vivo. Poll de pending como red de seguridad.
   useEffect(() => {

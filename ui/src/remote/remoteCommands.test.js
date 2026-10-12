@@ -9,11 +9,12 @@ import {
   runRemoteCommand,
   toRelativeMusicPath,
 } from './remoteCommands'
+import { playerReducer } from '../reducers/playerReducer'
 import {
   setTrack,
   addTracks,
   playNext,
-  playTracks,
+  manualQueue,
   removeTrack,
 } from '../actions'
 
@@ -117,35 +118,26 @@ describe('resolveContextIds', () => {
 })
 
 describe('runRemoteCommand playTrack con contexto', () => {
-  it('encola los resultados y empieza en el elegido', async () => {
-    const songs = [
-      { id: 's1', title: 'Uno' },
-      { id: 's2', title: 'Dos' },
-      { id: 's3', title: 'Tres' },
-    ]
+  it('plays only the selected song even with a legacy search context', async () => {
     const dataProvider = {
-      getMany: vi.fn().mockResolvedValue({ data: songs }),
-      getOne: vi.fn(),
+      getMany: vi.fn(),
+      getOne: vi.fn().mockResolvedValue({ data: { id: 's2', title: 'Dos' } }),
     }
     const dispatch = vi.fn()
-    const handled = runRemoteCommand(
+    runRemoteCommand(
       {
         action: 'playTrack',
         payload: { id: 's2', contextIds: ['s1', 's2', 's3'] },
       },
       { audioInstance: {}, dataProvider, dispatch },
     )
-    expect(handled).toBe(true)
     await vi.waitFor(() =>
       expect(dispatch).toHaveBeenCalledWith(
-        playTracks(
-          { s1: songs[0], s2: songs[1], s3: songs[2] },
-          ['s1', 's2', 's3'],
-          's2',
-        ),
+        setTrack({ id: 's2', title: 'Dos' }),
       ),
     )
-    expect(dataProvider.getOne).not.toHaveBeenCalled()
+    expect(dispatch.mock.calls[0][0]).toEqual(manualQueue())
+    expect(dataProvider.getMany).not.toHaveBeenCalled()
   })
 
   it('sin contexto mantiene el tema suelto de antes', async () => {
@@ -200,7 +192,7 @@ describe('runRemoteCommand', () => {
     expect(dispatch).not.toHaveBeenCalled()
   })
 
-  it('queueTrack añade al final sin reemplazar la cola', async () => {
+  it('queueTrack añade una petición manual sin reemplazar la cola', async () => {
     const dataProvider = {
       getOne: vi.fn().mockResolvedValue({ data: { id: 's9', title: 'Nueve' } }),
     }
@@ -487,8 +479,63 @@ it('keeps rapid queue requests in arrival order despite a slow first lookup', as
   await vi.waitFor(() => expect(provider.getOne).toHaveBeenCalledTimes(1))
   expect(dispatch).not.toHaveBeenCalled()
   resolveFirst({ data: { id: 'first' } })
-  await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2))
+  await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(4))
   expect(
-    dispatch.mock.calls.map(([action]) => Object.keys(action.data)[0]),
+    dispatch.mock.calls
+      .filter(([action]) => action.data)
+      .map(([action]) => Object.keys(action.data)[0]),
   ).toEqual(['first', 'second'])
+})
+
+it('remote play and additions use the same manual FIFO queue as the library', async () => {
+  let state = {
+    queue: [
+      { uuid: 'a', trackId: 'actual' },
+      { uuid: 'dj', trackId: 'automatic' },
+    ],
+    current: { uuid: 'a', trackId: 'actual' },
+    savedPlayIndex: 0,
+  }
+  const dataProvider = {
+    getOne: vi.fn(async (_, { id }) => ({ data: { id, title: id } })),
+  }
+  const deps = {
+    audioInstance: {},
+    dataProvider,
+    dispatch: (action) => {
+      state = playerReducer(state, action)
+    },
+    enqueue: createRemoteTaskQueue(),
+  }
+  runRemoteCommand({ action: 'queueTrack', payload: { id: 'm1' } }, deps)
+  runRemoteCommand({ action: 'queueTrack', payload: { id: 'm2' } }, deps)
+  await vi.waitFor(() =>
+    expect(state.queue.map((x) => x.trackId)).toEqual(['actual', 'm1', 'm2']),
+  )
+  runRemoteCommand(
+    {
+      action: 'playTrack',
+      payload: { id: 'chosen', contextIds: ['chosen', 'unrequested'] },
+    },
+    deps,
+  )
+  await vi.waitFor(() =>
+    expect(state.queue.map((x) => x.trackId)).toEqual(['chosen', 'm1', 'm2']),
+  )
+  runRemoteCommand({ action: 'queueTrack', payload: { id: 'm3' } }, deps)
+  await vi.waitFor(() =>
+    expect(state.queue.map((x) => x.trackId)).toEqual([
+      'chosen',
+      'm1',
+      'm2',
+      'm3',
+    ]),
+  )
+  expect(state.manualOnly).toBe(true)
+  expect(
+    playerReducer(
+      state,
+      addTracks({ extra: { id: 'extra' } }, undefined, { automatic: true }),
+    ),
+  ).toBe(state)
 })

@@ -84,13 +84,12 @@ describe('<RemoteView />', () => {
     await waitFor(() =>
       expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'playTrack', {
         id: 's2',
-        contextIds: ['s2'],
       }),
     )
     expect(searchSongs).toHaveBeenCalledWith('tito', 25)
   })
 
-  it('reproduce al tocar el nombre del tema con su contexto', async () => {
+  it('reproduce solo el tema al tocar su nombre', async () => {
     storeTarget('4321')
     searchSongs.mockResolvedValue([
       { id: 's2', title: 'Canción', artist: 'A2' },
@@ -108,7 +107,6 @@ describe('<RemoteView />', () => {
     await waitFor(() =>
       expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'playTrack', {
         id: 's2',
-        contextIds: ['s2', 's3'],
       }),
     )
   })
@@ -320,5 +318,40 @@ describe('<RemoteView />', () => {
     expect(search.closest('.MuiCard-root')).not.toBe(
       next.closest('.MuiCard-root'),
     )
+  })
+  it('uses a volume slider and preserves the selected level until the laptop confirms it', async () => {
+    storeTarget()
+    fetchState.mockResolvedValue({ title: 'Tema', volume: 0.25 })
+    render(<RemoteView />)
+    const slider = await screen.findByTestId('remote-volume')
+    await waitFor(() => expect(slider.value).toBe('25'))
+    fireEvent.change(slider, { target: { value: '80' } })
+    expect(slider.value).toBe('80')
+    fireEvent.mouseUp(slider)
+    await waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'volume', {
+        level: 0.8,
+      }),
+    )
+    await waitFor(() => expect(slider).not.toBeDisabled())
+    expect(slider.value).toBe('80')
+    fireEvent.touchEnd(slider)
+    expect(sendCommand).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTitle('Bajar volumen')).not.toBeInTheDocument()
+  })
+
+  it('allows zero volume and keyboard adjustments', async () => {
+    storeTarget()
+    fetchState.mockResolvedValue({ volume: 0.7 })
+    render(<RemoteView />)
+    const slider = await screen.findByTestId('remote-volume')
+    fireEvent.change(slider, { target: { value: '0' } })
+    fireEvent.keyUp(slider, { key: 'ArrowLeft' })
+    await waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'volume', {
+        level: 0,
+      }),
+    )
+    expect(slider.value).toBe('0')
   })
 })

@@ -267,6 +267,7 @@ export const playerReducer = (previousState = initialState, payload) => {
   const { type } = payload
   switch (type) {
     case PLAYER_MANUAL_QUEUE: {
+      if (previousState.manualOnly) return previousState
       const index = previousState.queue.findIndex(
         (item) => item.uuid === previousState.current?.uuid,
       )

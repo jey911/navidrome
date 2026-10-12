@@ -173,6 +173,9 @@ const RemoteView = () => {
   // Posición local de la barra de avance: mientras se arrastra manda lo
   // local; al soltar se envía la orden seek. Se resetea al cambiar de tema.
   const [seekPos, setSeekPos] = useState(null)
+  const [volumeDraft, setVolumeDraft] = useState(null)
+  const volumeEdit = useRef(null)
+  const volumePending = useRef(null)
   const lastStateAt = useRef(0)
   const commandBusy = useRef(false)
   const searchRequest = useRef(0)
@@ -188,6 +191,16 @@ const RemoteView = () => {
     if (timestamp && timestamp < lastStateAt.current) return
     lastStateAt.current = timestamp || lastStateAt.current
     setState(s)
+    const pending = volumePending.current
+    if (
+      pending &&
+      volumeEdit.current == null &&
+      (Math.abs((s?.volume ?? -1) - pending.level) < 0.015 ||
+        Date.now() - pending.at > 8000)
+    ) {
+      volumePending.current = null
+      setVolumeDraft(null)
+    }
     if (s?.notice && s.notice !== seenNoticeRef.current) {
       seenNoticeRef.current = s.notice
       setNotice(s.notice)
@@ -204,6 +217,9 @@ const RemoteView = () => {
   }, [])
 
   const drop = useCallback(() => {
+    setVolumeDraft(null)
+    volumeEdit.current = null
+    volumePending.current = null
     setTarget(null)
     lastStateAt.current = 0
     setState(null)
@@ -295,12 +311,14 @@ const RemoteView = () => {
       await sendCommand(target.sessionId, code, action, payload)
       const s = await fetchState(target.sessionId).catch(() => null)
       if (s) handleState(s)
+      return true
     } catch (e) {
       setError(
         e?.status === 403
           ? translate('remote.badCode', { _: 'Código incorrecto' })
           : translate('remote.cmdError', { _: 'No se pudo enviar la orden' }),
       )
+      return false
     } finally {
       commandBusy.current = false
       setBusy(false)
@@ -338,16 +356,8 @@ const RemoteView = () => {
     }
   }
 
-  const playSong = (song) =>
-    cmd('playTrack', {
-      id: song.id,
-      // Contexto: toda la lista de resultados para que siguiente/anterior
-      // se muevan dentro de lo buscado y no salten a otro lado.
-      contextIds: results.map((r) => r.id),
-    })
-  // Cola manual desde el mando: "siguiente" inserta justo después del tema
-  // actual y "cola" añade tras las peticiones manuales pendientes. Ambas suenan antes que el relleno
-  // automático (mismo artista, luego mismo género).
+  const playSong = (song) => cmd('playTrack', { id: song.id })
+  // The paired player uses the same explicit FIFO queue as the library.
   const queueNextSong = (song) => cmd('playNextTrack', { id: song.id })
   const queueSong = (song) => cmd('queueTrack', { id: song.id })
   // Borrado irreversible del ARCHIVO (lo ejecuta el laptop vía Emepetre):
@@ -382,6 +392,22 @@ const RemoteView = () => {
   const durationMs = state?.durationMs || 0
   const livePos = state?.positionMs || 0
   const shownPos = seekPos ?? Math.min(livePos, durationMs || livePos)
+
+  const shownVolume = Math.round(
+    volumeDraft ?? Math.max(0, Math.min(1, state?.volume ?? 0.5)) * 100,
+  )
+  const commitVolume = () => {
+    const value = volumeEdit.current
+    if (value == null) return
+    volumeEdit.current = null
+    volumePending.current = { level: value / 100, at: Date.now() }
+    cmd('volume', { level: value / 100 }).then((ok) => {
+      if (!ok) {
+        volumePending.current = null
+        setVolumeDraft(null)
+      }
+    })
+  }
 
   const commitSeek = () => {
     if (seekPos == null || durationMs <= 0) {
@@ -536,22 +562,29 @@ const RemoteView = () => {
                 <DeleteIcon />
               </IconButton>
             </div>
-            <div className={classes.row}>
-              <span className={classes.grow} />
-              <IconButton
-                onClick={() => cmd('volume', { delta: -0.1 })}
+            <div className="mm-remote-volume">
+              <VolDownIcon aria-hidden="true" />
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={shownVolume}
                 disabled={busy}
-                title="Bajar volumen"
-              >
-                <VolDownIcon />
-              </IconButton>
-              <IconButton
-                onClick={() => cmd('volume', { delta: 0.1 })}
-                disabled={busy}
-                title="Subir volumen"
-              >
-                <VolUpIcon />
-              </IconButton>
+                aria-label="Volumen"
+                aria-valuetext={`${shownVolume}%`}
+                data-testid="remote-volume"
+                onChange={(event) => {
+                  const value = Number(event.target.value)
+                  volumeEdit.current = value
+                  setVolumeDraft(value)
+                }}
+                onMouseUp={commitVolume}
+                onTouchEnd={commitVolume}
+                onKeyUp={commitVolume}
+              />
+              <VolUpIcon aria-hidden="true" />
+              <output aria-live="off">{shownVolume}%</output>
             </div>
 
             {state?.nextTitle && (
@@ -606,7 +639,7 @@ const RemoteView = () => {
               <>
                 <Typography variant="caption" color="textSecondary">
                   {translate('remote.queueHint', {
-                    _: '▶ Reproducir · ⏭ Siguiente · ＋ Añadir a la cola (antes del Auto-DJ).',
+                    _: '▶ Reproducir solo este tema · ⏭ Siguiente · ＋ Cola manual.',
                   })}
                 </Typography>
                 <List dense>
