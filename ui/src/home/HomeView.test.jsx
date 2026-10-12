@@ -11,7 +11,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Provider } from 'react-redux'
 import { createStore } from 'redux'
 import HomeView from './HomeView'
-import { setTrack, addTracks, playTracks, removeTrack } from '../actions'
+import {
+  setTrack,
+  addTracks,
+  playTracks,
+  removeTrack,
+  removeQueuedTrack,
+} from '../actions'
 import { deleteTrackFromServer } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
 import { setViewport } from '../setupTests'
@@ -255,7 +261,11 @@ describe('<HomeView />', () => {
       current: { uuid: 'u1', trackId: 's1', song },
       mode: 'order',
     })
-    fireEvent.click(await screen.findByTestId('home-queue-item'))
+    fireEvent.click(
+      within(await screen.findByTestId('home-queue-item')).getByRole('button', {
+        name: /Reproducir/,
+      }),
+    )
     const data = { u1: song }
     expect(dispatched).toContainEqual(playTracks(data, ['u1'], 'u1'))
   })
@@ -394,5 +404,35 @@ describe('<HomeView />', () => {
     expect(screen.queryByTestId('home-songs-table')).toBeNull()
     expect(screen.getAllByTestId('home-queue-item')).toHaveLength(1)
     expect(screen.getByTestId('mobile-compact-playback')).toBeInTheDocument()
+  })
+  it('marks pending songs in the library including duplicate requests', async () => {
+    setViewport({ phone: true })
+    renderView({
+      queue: [
+        { ...queueItem, uuid: 'pending1', manualQueued: true },
+        { ...queueItem, uuid: 'pending2', manualQueued: true },
+      ],
+      current: {},
+      mode: 'order',
+    })
+    expect(await screen.findByLabelText('En cola, 2 veces')).toHaveTextContent(
+      'En cola ×2',
+    )
+  })
+
+  it('removes a queue occurrence without playing it or deleting the server file', async () => {
+    setViewport({ phone: true })
+    renderView(
+      {
+        queue: [{ ...queueItem, uuid: 'pending1', manualQueued: true }],
+        current: {},
+        mode: 'order',
+      },
+      '/?view=queue',
+    )
+    fireEvent.click(await screen.findByTestId('home-queue-remove'))
+    expect(dispatched).toContainEqual(removeQueuedTrack('pending1'))
+    expect(dispatched).not.toContainEqual(setTrack(song))
+    expect(deleteTrackFromServer).not.toHaveBeenCalled()
   })
 })

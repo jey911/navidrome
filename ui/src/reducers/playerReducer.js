@@ -9,6 +9,7 @@ import {
   PLAYER_PLAY_NEXT,
   PLAYER_PLAY_TRACKS,
   PLAYER_REMOVE_TRACK,
+  PLAYER_REMOVE_QUEUED_TRACK,
   PLAYER_SET_TRACK,
   PLAYER_SET_VOLUME,
   PLAYER_SYNC_QUEUE,
@@ -210,6 +211,31 @@ const reduceRemoveTrack = (state, { data: { trackId } }) => {
   }
 }
 
+// Remove one pending occurrence, never the current song or all duplicates.
+const reduceRemoveQueuedTrack = (state, { data: { queueId } }) => {
+  const item = state.queue.find((entry) => entry.uuid === queueId)
+  if (!item?.manualQueued || item.uuid === state.current?.uuid) return state
+  const selectedId = state.queue[state.playIndex]?.uuid
+  const queue = state.queue.filter((entry) => entry.uuid !== queueId)
+  const currentIndex = queue.findIndex(
+    (entry) => entry.uuid === state.current?.uuid,
+  )
+  const selectedIndex = queue.findIndex((entry) => entry.uuid === selectedId)
+  return {
+    ...state,
+    queue,
+    savedPlayIndex: currentIndex,
+    ...(typeof state.playIndex === 'number'
+      ? {
+          playIndex: Math.max(
+            0,
+            selectedIndex >= 0 ? selectedIndex : currentIndex,
+          ),
+        }
+      : {}),
+  }
+}
+
 const reduceSetVolume = (state, { data: { volume } }) => {
   return {
     ...state,
@@ -309,6 +335,8 @@ export const playerReducer = (previousState = initialState, payload) => {
       return reduceAddTracks(previousState, payload)
     case PLAYER_PLAY_NEXT:
       return reducePlayNext(previousState, payload)
+    case PLAYER_REMOVE_QUEUED_TRACK:
+      return reduceRemoveQueuedTrack(previousState, payload)
     case PLAYER_REMOVE_TRACK:
       return reduceRemoveTrack(previousState, payload)
     case PLAYER_SET_VOLUME:

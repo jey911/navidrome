@@ -39,17 +39,18 @@ import (
 // Emepetre, mismo origen /downloader; Navidrome monta /music en :ro y no
 // puede borrar por sí mismo). Irreversible: el mando pide confirmación.
 var remoteActions = map[string]bool{
-	"play":          true,
-	"pause":         true,
-	"toggle":        true,
-	"next":          true,
-	"prev":          true,
-	"volume":        true,
-	"seek":          true,
-	"playTrack":     true,
-	"playNextTrack": true,
-	"queueTrack":    true,
-	"deleteTrack":   true,
+	"play":              true,
+	"pause":             true,
+	"toggle":            true,
+	"next":              true,
+	"prev":              true,
+	"volume":            true,
+	"seek":              true,
+	"playTrack":         true,
+	"playNextTrack":     true,
+	"queueTrack":        true,
+	"removeQueuedTrack": true,
+	"deleteTrack":       true,
 }
 
 type remoteCommand struct {
@@ -60,9 +61,10 @@ type remoteCommand struct {
 }
 
 type remoteQueueItem struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Artist string `json:"artist"`
+	QueueID string `json:"queueId"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Artist  string `json:"artist"`
 }
 
 type remotePlaybackState struct {

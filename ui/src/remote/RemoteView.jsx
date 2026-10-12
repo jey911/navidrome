@@ -16,6 +16,7 @@ import {
 import {
   Add as AddIcon,
   Delete as DeleteIcon,
+  Close as CloseIcon,
   Pause as PauseIcon,
   PlayArrow as PlayIcon,
   Refresh as RefreshIcon,
@@ -27,6 +28,7 @@ import {
 } from '@material-ui/icons'
 import { fetchState, listSessions, sendCommand } from './remoteApi'
 import { searchSongs, SEARCH_LIMIT } from './searchSongs'
+import QueuedIndicator from '../common/QueuedIndicator'
 import './remote.css'
 
 const TARGET_KEY = 'remoteTarget'
@@ -202,7 +204,9 @@ const RemoteView = () => {
         s.commandError ||
           (['queueTrack', 'playNextTrack'].includes(pending.action)
             ? 'Canción añadida a la cola'
-            : 'Orden aplicada'),
+            : pending.action === 'removeQueuedTrack'
+              ? 'Canción quitada de la cola'
+              : 'Orden aplicada'),
       )
       if (!s.commandError && pending.action === 'deleteTrack')
         setResults((rows) => rows.filter((song) => song.id !== pending.songId))
@@ -701,9 +705,22 @@ const RemoteView = () => {
             {state?.queue?.length ? (
               <ol className="mm-remote-queue">
                 {state.queue.map((song, index) => (
-                  <li key={`${song.id}-${index}`}>
-                    <strong>{song.title}</strong>
-                    <span>{song.artist}</span>
+                  <li key={song.queueId || `${song.id}-${index}`}>
+                    <div>
+                      <strong>{song.title}</strong>
+                      <span>{song.artist}</span>
+                    </div>
+                    <IconButton
+                      aria-label={`Quitar de la cola: ${song.title}`}
+                      title="Quitar de la cola"
+                      disabled={busy || !song.queueId}
+                      data-testid="remote-remove-queued"
+                      onClick={() =>
+                        cmd('removeQueuedTrack', { queueId: song.queueId })
+                      }
+                    >
+                      <CloseIcon />
+                    </IconButton>
                   </li>
                 ))}
               </ol>
@@ -769,7 +786,22 @@ const RemoteView = () => {
                     >
                       <ListItemText
                         primary={song.title}
-                        secondary={song.artist}
+                        secondary={
+                          <>
+                            <span className="mm-truncate">{song.artist}</span>
+                            <QueuedIndicator
+                              count={
+                                (state?.queue || []).filter(
+                                  (item) => item.id === song.id,
+                                ).length
+                              }
+                            />
+                          </>
+                        }
+                        secondaryTypographyProps={{
+                          component: 'div',
+                          className: 'mm-song-artist-line',
+                        }}
                         className={classes.resultText}
                         onClick={() => playSong(song)}
                         data-testid="remote-result-title"

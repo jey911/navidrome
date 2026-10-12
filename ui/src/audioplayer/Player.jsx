@@ -216,6 +216,7 @@ const Player = () => {
         .filter((item) => item.manualQueued && item.uuid !== st.current?.uuid)
         .map((item) => ({
           id: item.trackId,
+          queueId: item.uuid,
           title: item.song?.title || item.name,
           artist: item.song?.artist || item.singer,
         })),

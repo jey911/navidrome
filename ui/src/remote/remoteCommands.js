@@ -3,6 +3,7 @@ import {
   playNext,
   manualQueue,
   removeTrack,
+  removeQueuedTrack,
   setTrack,
 } from '../actions'
 
@@ -216,6 +217,15 @@ export const runRemoteCommand = (
       if (!queueSingleTrack(addTracks)) return false
       break
     }
+    case 'removeQueuedTrack': {
+      if (typeof payload.queueId !== 'string' || !payload.queueId || !dispatch)
+        return false
+      enqueue(() => {
+        dispatch(removeQueuedTrack(payload.queueId))
+        acknowledge()
+      })
+      break
+    }
     case 'deleteTrack': {
       const id = resolvePlayTrackId(payload)
       if (!id || !dispatch) return false
@@ -254,9 +264,13 @@ export const runRemoteCommand = (
       return false
   }
   if (
-    !['playTrack', 'playNextTrack', 'queueTrack', 'deleteTrack'].includes(
-      cmd.action,
-    )
+    ![
+      'playTrack',
+      'playNextTrack',
+      'queueTrack',
+      'removeQueuedTrack',
+      'deleteTrack',
+    ].includes(cmd.action)
   )
     acknowledge()
   return true

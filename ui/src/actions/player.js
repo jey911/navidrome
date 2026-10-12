@@ -4,6 +4,11 @@ export const manualQueue = () => ({ type: PLAYER_MANUAL_QUEUE })
 export const PLAYER_ADD_TRACKS = 'PLAYER_ADD_TRACKS'
 export const PLAYER_PLAY_NEXT = 'PLAYER_PLAY_NEXT'
 export const PLAYER_REMOVE_TRACK = 'PLAYER_REMOVE_TRACK'
+export const PLAYER_REMOVE_QUEUED_TRACK = 'PLAYER_REMOVE_QUEUED_TRACK'
+export const removeQueuedTrack = (queueId) => ({
+  type: PLAYER_REMOVE_QUEUED_TRACK,
+  data: { queueId },
+})
 export const PLAYER_SET_TRACK = 'PLAYER_SET_TRACK'
 export const PLAYER_SYNC_QUEUE = 'PLAYER_SYNC_QUEUE'
 export const PLAYER_CLEAR_QUEUE = 'PLAYER_CLEAR_QUEUE'

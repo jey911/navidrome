@@ -31,7 +31,7 @@ const InlinePlayer = ({ playerRef, ...props }) => {
   return <MusicPlayer ref={playerRef} {...props} className={classes.player} />
 }
 
-it('reorders the real player queue without restarting the current song, then plays the manual next song', async () => {
+it('reorders and removes pending tracks without restarting playback, then plays the manual next song', async () => {
   const ref = createRef()
   const a = { uuid: 'a', trackId: 'a', name: 'Actual', musicSrc: '/a.mp3' }
   const b = { uuid: 'b', trackId: 'b', name: 'Auto-DJ', musicSrc: '/b.mp3' }
@@ -71,6 +71,15 @@ it('reorders the real player queue without restarting the current song, then pla
   expect(ref.current.state.toggle).toBe(false)
   const playerRoot = document.querySelector('.react-jinke-music-player-main')
   expect(getComputedStyle(playerRoot).display).toBe('none')
+  view.rerender(<InlinePlayer {...props} audioLists={[a, m]} />)
+  await waitFor(() =>
+    expect(ref.current.state.audioLists.map((item) => item.uuid)).toEqual([
+      'a',
+      'm',
+    ]),
+  )
+  expect(ref.current.state.playId).toBe(playingId)
+  expect(ref.current.audio.currentTime).toBe(42)
   act(() => {
     ref.current.audio.playNext()
   })

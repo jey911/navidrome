@@ -6,6 +6,7 @@ import {
   PLAYER_REFRESH_QUEUE,
   PLAYER_REMOVE_TRACK,
   addTracks,
+  removeQueuedTrack,
   manualQueue,
   playTracks,
   playNext,
@@ -404,4 +405,26 @@ it('mobile mode starts with an empty pending queue when no manual request exists
   expect(result.queue).toEqual([])
   const selected = playerReducer(result, setTrack({ id: 'chosen' }))
   expect(selected.queue.map((x) => x.trackId)).toEqual(['chosen'])
+})
+
+it('removes only one pending duplicate and leaves current playback unchanged', () => {
+  const current = { uuid: 'playing', trackId: 'same' }
+  const state = {
+    queue: [
+      { ...current, manualQueued: false },
+      { uuid: 'pending1', trackId: 'same', manualQueued: true },
+      { uuid: 'pending2', trackId: 'same', manualQueued: true },
+    ],
+    current,
+    savedPlayIndex: 0,
+    playIndex: 0,
+    autoPlay: true,
+  }
+  const result = playerReducer(state, removeQueuedTrack('pending1'))
+  expect(result.queue.map((item) => item.uuid)).toEqual(['playing', 'pending2'])
+  expect(result.current).toBe(current)
+  expect(result.autoPlay).toBe(true)
+  expect(state.queue).toHaveLength(3)
+  expect(playerReducer(state, removeQueuedTrack('playing'))).toBe(state)
+  expect(playerReducer(state, removeQueuedTrack('missing'))).toBe(state)
 })

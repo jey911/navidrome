@@ -440,4 +440,22 @@ describe('<RemoteView />', () => {
       code.compareDocumentPosition(play) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
   })
+  it('removes a specific queued occurrence remotely without deleting its file', async () => {
+    storeTarget('4321')
+    fetchState.mockResolvedValue({
+      queue: [{ id: 's2', queueId: 'entry2', title: 'Pendiente', artist: 'A' }],
+    })
+    render(<RemoteView />)
+    fireEvent.click(
+      await screen.findByLabelText('Quitar de la cola: Pendiente'),
+    )
+    await waitFor(() =>
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'removeQueuedTrack',
+        expect.objectContaining({ queueId: 'entry2' }),
+      ),
+    )
+  })
 })

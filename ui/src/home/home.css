@@ -1281,3 +1281,39 @@ button.mm-tool-item {
     outline-offset: -2px;
   }
 }
+
+.mm-queue-play {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.mm-queue-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #a6b8d2;
+  cursor: pointer;
+}
+.mm-queue-remove:active {
+  background: #26354b;
+}
+.mm-queue-remove:focus-visible {
+  outline: 2px solid #83c0ff;
+}
+.mm-home .mm-queue-item {
+  display: flex;
+}

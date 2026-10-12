@@ -20,6 +20,8 @@ import ShuffleIcon from '@material-ui/icons/Shuffle'
 import RepeatIcon from '@material-ui/icons/Repeat'
 import VolumeUpIcon from '@material-ui/icons/VolumeUp'
 import AddIcon from '@material-ui/icons/Add'
+import CloseIcon from '@material-ui/icons/Close'
+import QueuedIndicator from '../common/QueuedIndicator'
 import DeleteIcon from '@material-ui/icons/Delete'
 import ChevronRightIcon from '@material-ui/icons/ChevronRight'
 import FolderOpenIcon from '@material-ui/icons/FolderOpen'
@@ -32,6 +34,7 @@ import {
   addTracks,
   playTracks,
   removeTrack,
+  removeQueuedTrack,
   setPlayMode,
   setTrack,
 } from '../actions'
@@ -305,6 +308,12 @@ const HomeView = () => {
   const displayQueue = isPhone
     ? queue.filter((item) => item.manualQueued && item.uuid !== current.uuid)
     : queue
+  const queuedCounts = new Map()
+  queue
+    .filter((item) => item.manualQueued && item.uuid !== current.uuid)
+    .forEach((item) => {
+      queuedCounts.set(item.trackId, (queuedCounts.get(item.trackId) || 0) + 1)
+    })
   const deletedSongIds = useRef(new Set())
   const [query, setQuery] = useState('')
   const [recentAlbums, setRecentAlbums] = useState(null)
@@ -818,6 +827,7 @@ const HomeView = () => {
                             onQueue={queueSong}
                             onDelete={deleteSong}
                             deleting={deleting.has(song.id)}
+                            queuedCount={queuedCounts.get(song.id) || 0}
                           />
                         )
                       const quality = qualityOf(song)
@@ -832,6 +842,9 @@ const HomeView = () => {
                           <td>
                             <div className="mm-song-cell">
                               <div className="mm-truncate">{song.title}</div>
+                              <QueuedIndicator
+                                count={queuedCounts.get(song.id) || 0}
+                              />
                             </div>
                           </td>
                           <td>
@@ -945,37 +958,56 @@ const HomeView = () => {
               ) : (
                 <div className="mm-queue-list">
                   {displayQueue.map((item) => (
-                    <button
+                    <div
                       key={item.uuid}
                       className={
                         item.uuid === current?.uuid
                           ? 'mm-queue-item active'
                           : 'mm-queue-item'
                       }
-                      onClick={() => jumpToQueueItem(item)}
                       data-testid="home-queue-item"
                     >
-                      {item.cover ? (
-                        <img
-                          className="mm-thumb"
-                          src={item.cover}
-                          alt=""
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
+                      <button
+                        className="mm-queue-play"
+                        aria-label={`Reproducir ${item.name}`}
+                        onClick={() => jumpToQueueItem(item)}
+                      >
+                        {item.cover ? (
+                          <img
+                            className="mm-thumb"
+                            src={item.cover}
+                            alt=""
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none'
+                            }}
+                          />
+                        ) : (
+                          <div className="mm-thumb" />
+                        )}
+                        <div className="mm-queue-info">
+                          <b>{item.name}</b>
+                          <span>{item.singer || item.song?.artist}</span>
+                        </div>
+                        <div className="mm-queue-time">
+                          {formatDuration(item.duration)}
+                        </div>
+                      </button>
+                      {item.manualQueued && item.uuid !== current.uuid && (
+                        <button
+                          className="mm-queue-remove"
+                          aria-label={`Quitar de la cola: ${item.name}`}
+                          title="Quitar de la cola"
+                          onClick={() => {
+                            dispatch(removeQueuedTrack(item.uuid))
+                            notify(`Quitada de la cola: ${item.name}`, 'info')
                           }}
-                        />
-                      ) : (
-                        <div className="mm-thumb" />
+                          data-testid="home-queue-remove"
+                        >
+                          <CloseIcon fontSize="small" />
+                        </button>
                       )}
-                      <div className="mm-queue-info">
-                        <b>{item.name}</b>
-                        <span>{item.singer || item.song?.artist}</span>
-                      </div>
-                      <div className="mm-queue-time">
-                        {formatDuration(item.duration)}
-                      </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}

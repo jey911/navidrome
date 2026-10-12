@@ -4,6 +4,7 @@ import PauseIcon from '@material-ui/icons/Pause'
 import SkipNextIcon from '@material-ui/icons/SkipNext'
 import AddIcon from '@material-ui/icons/Add'
 import DeleteIcon from '@material-ui/icons/Delete'
+import QueuedIndicator from '../common/QueuedIndicator'
 import { getAudioInstance } from '../audioplayer/audioBus'
 
 // Only mounted playback controls update; the library never ticks with audio.
@@ -52,6 +53,7 @@ export const MobileSongRow = ({
   onQueue,
   onDelete,
   deleting,
+  queuedCount = 0,
 }) => {
   const playback = usePlayback(active, song.id)
   return (
@@ -73,7 +75,10 @@ export const MobileSongRow = ({
         <div className="mm-truncate">{song.title}</div>
       </td>
       <td className="mm-mobile-artist">
-        <div className="mm-truncate">{song.artist}</div>
+        <div className="mm-song-artist-line">
+          <span className="mm-truncate">{song.artist}</span>
+          <QueuedIndicator count={queuedCount} />
+        </div>
       </td>
       <td className="mm-mobile-actions">
         <div className="mm-row-actions">
