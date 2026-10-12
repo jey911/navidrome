@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   useTranslate,
   useDataProvider,
@@ -36,10 +36,7 @@ import {
   setTrack,
 } from '../actions'
 import { getAudioInstance } from '../audioplayer/audioBus'
-import {
-  deleteTrackViaEmepetre,
-  toRelativeMusicPath,
-} from '../remote/remoteCommands'
+import { deleteTrackFromServer } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
 import { LoveButton, SongContextMenu, SongPlayButton, Title } from '../common'
 import { searchSongs } from '../remote/searchSongs'
@@ -307,6 +304,7 @@ const HomeView = () => {
   const displayQueue = isPhone
     ? queue.filter((item) => item.manualQueued && item.uuid !== current.uuid)
     : queue
+  const deletedSongIds = useRef(new Set())
   const [query, setQuery] = useState('')
   const [recentAlbums, setRecentAlbums] = useState(null)
   const [playlists, setPlaylists] = useState(null)
@@ -401,7 +399,9 @@ const HomeView = () => {
           total = response.total
         }
         if (alive) {
-          setLatestSongs(rows)
+          setLatestSongs(
+            rows.filter((song) => !deletedSongIds.current.has(song.id)),
+          )
           setSongsTotal(total)
         }
       } catch {
@@ -465,23 +465,20 @@ const HomeView = () => {
       return
     }
     try {
-      const rel = toRelativeMusicPath(song.path)
-      if (!rel) {
-        notify(
-          'Esa canción no está bajo /music: no se puede borrar.',
-          'warning',
-        )
-        return
-      }
-      const res = await deleteTrackViaEmepetre(rel)
-      if (res?.deleted?.includes(rel)) {
+      const res = await deleteTrackFromServer(song.id)
+      if (res?.deleted?.includes(song.id)) {
+        deletedSongIds.current.add(song.id)
+        setLatestSongs((rows) => rows?.filter((row) => row.id !== song.id))
+        subsonic.startScan({ fullScan: false }).catch(() => {})
         reloadSongs()
         const currentTrackId = current?.trackId || current?.song?.id
         if (currentTrackId === song.id) {
-          getAudioInstance()?.playNext?.()
-        } else {
-          dispatch(removeTrack(song.id))
+          const index = queue.findIndex((item) => item.uuid === current.uuid)
+          if (index >= 0 && index < queue.length - 1)
+            getAudioInstance()?.playNext?.()
+          else getAudioInstance()?.pause?.()
         }
+        dispatch(removeTrack(song.id))
         notify(`Borrada de la biblioteca: ${song.title}`, 'info')
       } else {
         notify(
@@ -492,8 +489,8 @@ const HomeView = () => {
     } catch (e) {
       notify(
         e?.status === 401
-          ? 'Para borrar, abre el Downloader e inicia sesión primero.'
-          : 'Borrado fallido: revisa la conexión.',
+          ? 'Tu sesión caducó: vuelve a iniciar sesión en Navidrome.'
+          : e.detail || e.message || 'Borrado fallido: revisa la conexión.',
         'warning',
       )
     }

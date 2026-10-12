@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   createCommandDedupe,
   createRemoteTaskQueue,
-  deleteTrackViaEmepetre,
+  deleteTrackFromServer,
   resolveContextIds,
   resolvePlayTrackId,
   runDedupedRemoteCommand,
@@ -276,183 +276,86 @@ describe('toRelativeMusicPath', () => {
   })
 })
 
-describe('deleteTrackViaEmepetre', () => {
+describe('server-side delete by song ID', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ deleted: ['a.mp3'], errors: [] }),
-      }),
+      vi
+        .fn()
+        .mockResolvedValue({
+          ok: true,
+          json: async () => ({ deleted: ['s1'] }),
+        }),
     )
+    localStorage.setItem('token', 'test-token')
   })
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('pide el borrado al mismo origen con cabecera XHR', async () => {
-    await deleteTrackViaEmepetre('a.mp3')
+  afterEach(() => vi.unstubAllGlobals())
+  it('uses the Navidrome session and sends an ID rather than a filesystem path', async () => {
+    await deleteTrackFromServer('s1')
     expect(fetch).toHaveBeenCalledWith(
-      '/downloader/api/library/delete',
+      '/api/library/delete-song',
       expect.objectContaining({
-        method: 'POST',
-        credentials: 'same-origin',
-        body: JSON.stringify({ paths: ['a.mp3'] }),
-      }),
-    )
-    expect(fetch.mock.calls[0][1].headers['X-Requested-With']).toBe(
-      'XMLHttpRequest',
-    )
-  })
-
-  it('el 401 se propaga con status para guiar al login', async () => {
-    fetch.mockResolvedValueOnce({ ok: false, status: 401 })
-    await expect(deleteTrackViaEmepetre('a.mp3')).rejects.toMatchObject({
-      status: 401,
-    })
-  })
-})
-
-describe('runRemoteCommand deleteTrack', () => {
-  beforeEach(() => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({ deleted: ['Salsa/tema.mp3'], errors: [] }),
+        body: JSON.stringify({ songId: 's1' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token',
+        }),
       }),
     )
   })
-  afterEach(() => {
-    vi.unstubAllGlobals()
+  it('reports server failures rather than claiming a deletion', async () => {
+    fetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ detail: 'Se requiere sesión administradora.' }),
+    })
+    await expect(deleteTrackFromServer('s1')).rejects.toMatchObject({
+      status: 403,
+      detail: 'Se requiere sesión administradora.',
+    })
   })
-
-  const song = {
-    id: 's1',
-    title: 'Tema',
-    path: '/music/Salsa/tema.mp3',
-  }
-
-  it('borra, avanza si era la actual y avisa al mando', async () => {
-    const dataProvider = { getOne: vi.fn().mockResolvedValue({ data: song }) }
+  it('pauses and removes the current song when it was the last track', async () => {
+    const audioInstance = { pause: vi.fn(), playNext: vi.fn() }
     const dispatch = vi.fn()
     const notify = vi.fn()
-    const audioInstance = { playNext: vi.fn() }
-    const getPlayerState = () => ({
-      queue: [{ trackId: 's1', uuid: 'u1' }],
-      current: { trackId: 's1', uuid: 'u1' },
-    })
-
-    const handled = runRemoteCommand(
-      { action: 'deleteTrack', payload: { id: 's1' } },
-      { audioInstance, dataProvider, dispatch, getPlayerState, notify },
-    )
-    expect(handled).toBe(true)
-    await vi.waitFor(() =>
-      expect(notify).toHaveBeenCalledWith(
-        expect.objectContaining({ notice: expect.stringContaining('Tema') }),
-      ),
-    )
-    expect(audioInstance.playNext).toHaveBeenCalled()
-    expect(dispatch).not.toHaveBeenCalledWith(removeTrack('s1'))
-  })
-
-  it('quita de la cola los temas futuros borrados sin cortar la actual', async () => {
-    const dataProvider = {
-      getOne: vi.fn().mockResolvedValue({ data: { ...song, id: 's9' } }),
-    }
-    const dispatch = vi.fn()
-    const notify = vi.fn()
-    const audioInstance = { playNext: vi.fn() }
-    const getPlayerState = () => ({
-      queue: [
-        { trackId: 's1', uuid: 'u1' },
-        { trackId: 's9', uuid: 'u9' },
-      ],
-      current: { trackId: 's1', uuid: 'u1' },
-    })
-
     runRemoteCommand(
-      { action: 'deleteTrack', payload: { id: 's9' } },
-      { audioInstance, dataProvider, dispatch, getPlayerState, notify },
+      { action: 'deleteTrack', payload: { id: 's1' } },
+      {
+        audioInstance,
+        dispatch,
+        notify,
+        getPlayerState: () => ({
+          queue: [{ uuid: 'u', trackId: 's1' }],
+          current: { uuid: 'u', trackId: 's1' },
+        }),
+      },
     )
     await vi.waitFor(() =>
-      expect(dispatch).toHaveBeenCalledWith(removeTrack('s9')),
+      expect(dispatch).toHaveBeenCalledWith(removeTrack('s1')),
     )
+    expect(audioInstance.pause).toHaveBeenCalledOnce()
     expect(audioInstance.playNext).not.toHaveBeenCalled()
   })
-
-  it('sin sesión del Downloader avisa de iniciar sesión en el laptop', async () => {
-    fetch.mockResolvedValueOnce({ ok: false, status: 401 })
-    const dataProvider = { getOne: vi.fn().mockResolvedValue({ data: song }) }
-    const notify = vi.fn()
-    runRemoteCommand(
-      { action: 'deleteTrack', payload: { id: 's1' } },
-      { audioInstance: {}, dataProvider, dispatch: vi.fn(), notify },
-    )
-    await vi.waitFor(() =>
-      expect(notify).toHaveBeenCalledWith(
-        expect.objectContaining({
-          notice: expect.stringContaining('Downloader'),
-        }),
-      ),
-    )
-  })
-
-  it('muestra el detalle del servidor cuando el borrado falla', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      json: async () => ({ detail: 'disco lleno' }),
-    })
-    const dataProvider = { getOne: vi.fn().mockResolvedValue({ data: song }) }
-    const notify = vi.fn()
-    runRemoteCommand(
-      { action: 'deleteTrack', payload: { id: 's1' } },
-      { audioInstance: {}, dataProvider, dispatch: vi.fn(), notify },
-    )
-    await vi.waitFor(() =>
-      expect(notify).toHaveBeenCalledWith(
-        expect.objectContaining({
-          notice: expect.stringContaining('disco lleno'),
-        }),
-      ),
-    )
-  })
-
-  it('muestra el status si el error no trae detalle', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: false,
-      status: 502,
-      json: async () => {
-        throw new Error('no json')
-      },
-    })
-    const dataProvider = { getOne: vi.fn().mockResolvedValue({ data: song }) }
-    const notify = vi.fn()
-    runRemoteCommand(
-      { action: 'deleteTrack', payload: { id: 's1' } },
-      { audioInstance: {}, dataProvider, dispatch: vi.fn(), notify },
-    )
-    await vi.waitFor(() =>
-      expect(notify).toHaveBeenCalledWith(
-        expect.objectContaining({ notice: expect.stringContaining('502') }),
-      ),
-    )
-  })
-
-  it('ignora deleteTrack sin id resoluble', () => {
-    const dataProvider = { getOne: vi.fn() }
+  it('advances to the queued song and removes the deleted file from playback', async () => {
+    const audioInstance = { pause: vi.fn(), playNext: vi.fn() }
     const dispatch = vi.fn()
-    expect(
-      runRemoteCommand(
-        { action: 'deleteTrack', payload: {} },
-        { audioInstance: {}, dataProvider, dispatch },
-      ),
-    ).toBe(false)
-    expect(dataProvider.getOne).not.toHaveBeenCalled()
+    runRemoteCommand(
+      { action: 'deleteTrack', payload: { id: 's1' } },
+      {
+        audioInstance,
+        dispatch,
+        getPlayerState: () => ({
+          queue: [
+            { uuid: 'u', trackId: 's1' },
+            { uuid: 'v', trackId: 's2' },
+          ],
+          current: { uuid: 'u', trackId: 's1' },
+        }),
+      },
+    )
+    await vi.waitFor(() =>
+      expect(dispatch).toHaveBeenCalledWith(removeTrack('s1')),
+    )
+    expect(audioInstance.playNext).toHaveBeenCalledOnce()
   })
 })
 

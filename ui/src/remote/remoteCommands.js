@@ -91,38 +91,28 @@ export const toRelativeMusicPath = (absPath) => {
 // Borra un archivo vía Emepetre en el MISMO origen (/downloader).
 // Exige la sesión del Downloader en este navegador + cabecera XHR.
 // En errores HTTP intenta rescatar el detalle del servidor para mostrarlo.
-export const deleteTrackViaEmepetre = async (relPath) => {
-  const res = await fetch('/downloader/api/library/delete', {
+export const deleteTrackFromServer = async (songId) => {
+  const token = localStorage.getItem('token')
+  const res = await fetch('/api/library/delete-song', {
     method: 'POST',
     credentials: 'same-origin',
     headers: {
       'Content-Type': 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ paths: [relPath] }),
+    body: JSON.stringify({ songId }),
   })
-  if (res.status === 401) {
-    const err = new Error('unauthorized')
-    err.status = 401
-    throw err
-  }
+  const body = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = new Error(`delete ${res.status}`)
-    err.status = res.status
-    try {
-      const body = await res.json()
-      const detail = body?.detail
-      err.detail = Array.isArray(detail)
-        ? detail.map((d) => d?.msg || JSON.stringify(d)).join('; ')
-        : typeof detail === 'string'
-          ? detail
-          : undefined
-    } catch {
-      // respuesta no JSON (p. ej. proxy): quedarse con el status
-    }
-    throw err
+    const error = new Error(
+      body.detail || `Borrado fallido (HTTP ${res.status}).`,
+    )
+    error.status = res.status
+    error.detail = body.detail
+    throw error
   }
-  return res.json()
+  return body
 }
 
 // Ejecuta una orden del mando móvil sobre el reproductor local.
@@ -219,61 +209,36 @@ export const runRemoteCommand = (
     }
     case 'deleteTrack': {
       const id = resolvePlayTrackId(payload)
-      if (!id || !dataProvider || !dispatch) return false
-      dataProvider
-        .getOne('song', { id })
-        .then(({ data }) => {
-          const rel = toRelativeMusicPath(data?.path)
-          if (!rel) {
-            throw Object.assign(new Error('Ruta fuera de /music.'), {
-              code: 'norel',
-            })
-          }
-          return deleteTrackViaEmepetre(rel).then((res) => ({ res, rel, data }))
-        })
-        .then(({ res, rel, data }) => {
-          const trackId = data?.id || id
-          const title = data?.title || rel
-          if (res?.deleted?.includes(rel)) {
-            const st = getPlayerState?.() || {}
-            const queue = st.queue || []
-            const current = st.current || {}
-            const currentIdx = queue.findIndex(
-              (item) => item.uuid === current.uuid,
-            )
-            const delIdx = queue.findIndex((item) => item.trackId === trackId)
-            if (delIdx === currentIdx || current.trackId === trackId) {
-              el.playNext?.()
-            } else if (delIdx > currentIdx) {
-              dispatch(removeTrack(trackId))
+      if (!id || !dispatch) return false
+      enqueue(() =>
+        deleteTrackFromServer(id)
+          .then((res) => {
+            if (!res.deleted?.includes(id))
+              throw new Error('El servidor no confirmó el borrado.')
+            const state = getPlayerState?.() || {}
+            if (state.current?.trackId === id) {
+              const index =
+                state.queue?.findIndex(
+                  (item) => item.uuid === state.current.uuid,
+                ) ?? -1
+              if (index >= 0 && index < state.queue.length - 1) el.playNext?.()
+              else el.pause?.()
             }
-            notify?.({ notice: `Borrada de la biblioteca: ${title}` })
-          } else {
-            const detail = res?.errors?.[0]?.error || 'no se pudo borrar'
-            notify?.({ notice: `No se borró ${title}: ${detail}` })
-          }
-        })
-        .catch((e) => {
-          if (e?.status === 401) {
+            dispatch(removeTrack(id))
+            notify?.({ notice: 'Canción eliminada del disco del servidor.' })
+          })
+          .catch((error) =>
             notify?.({
               notice:
-                'Para borrar, abre el Downloader en el laptop e inicia sesión primero.',
-            })
-          } else if (e?.code === 'norel') {
-            notify?.({
-              notice: 'Esa canción no está bajo /music: no se puede borrar.',
-            })
-          } else if (e?.status || e?.detail) {
-            const cause = e.detail || `HTTP ${e.status}`
-            notify?.({ notice: `Borrado fallido (${cause}).` })
-          } else {
-            notify?.({
-              notice: `Borrado fallido: ${e?.message || 'sin conexión con el laptop'}.`,
-            })
-          }
-        })
+                error.detail ||
+                error.message ||
+                'No se pudo borrar la canción.',
+            }),
+          ),
+      )
       break
     }
+
     default:
       return false
   }

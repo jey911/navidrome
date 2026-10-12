@@ -11,7 +11,7 @@ import { Provider } from 'react-redux'
 import { createStore } from 'redux'
 import HomeView from './HomeView'
 import { setTrack, addTracks, playTracks, removeTrack } from '../actions'
-import { deleteTrackViaEmepetre } from '../remote/remoteCommands'
+import { deleteTrackFromServer } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
 import { setViewport } from '../setupTests'
 import { searchSongs } from '../remote/searchSongs'
@@ -43,7 +43,7 @@ vi.mock('../remote/remoteCommands', () => ({
   MUSIC_DIR_PREFIX: '/music/',
   toRelativeMusicPath: (p) =>
     typeof p === 'string' && p.startsWith('/music/') ? p.slice(7) : null,
-  deleteTrackViaEmepetre: vi.fn(),
+  deleteTrackFromServer: vi.fn(),
 }))
 
 vi.mock('../common', () => ({
@@ -110,6 +110,7 @@ const renderView = (player = { queue: [], current: {}, mode: 'order' }) => {
 describe('<HomeView />', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    subsonic.startScan.mockResolvedValue({})
     searchSongs.mockResolvedValue([{ id: 'found' }])
     mockGetMany.mockResolvedValue({
       data: [{ ...song, id: 'found', title: 'Resultado de búsqueda' }],
@@ -252,17 +253,15 @@ describe('<HomeView />', () => {
 
   it('borra con confirmación y quita de la cola', async () => {
     window.confirm = vi.fn(() => true)
-    deleteTrackViaEmepetre.mockResolvedValue({
-      deleted: ['Bachata/Joe Veras/tema.mp3'],
+    deleteTrackFromServer.mockResolvedValue({
+      deleted: ['s1'],
       errors: [],
     })
     renderView({ queue: [], current: {}, mode: 'order' })
     await screen.findByTestId('home-song-row')
     fireEvent.click(screen.getByTestId('home-song-delete'))
     await waitFor(() =>
-      expect(deleteTrackViaEmepetre).toHaveBeenCalledWith(
-        'Bachata/Joe Veras/tema.mp3',
-      ),
+      expect(deleteTrackFromServer).toHaveBeenCalledWith('s1'),
     )
     await waitFor(() => expect(dispatched).toContainEqual(removeTrack('s1')))
     expect(mockNotify).toHaveBeenCalledWith(
@@ -276,7 +275,7 @@ describe('<HomeView />', () => {
     renderView()
     await screen.findByTestId('home-song-row')
     fireEvent.click(screen.getByTestId('home-song-delete'))
-    expect(deleteTrackViaEmepetre).not.toHaveBeenCalled()
+    expect(deleteTrackFromServer).not.toHaveBeenCalled()
   })
 
   it('filters the same library as you type and restores it when cleared', async () => {

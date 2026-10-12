@@ -202,6 +202,10 @@ const reduceRemoveTrack = (state, { data: { trackId } }) => {
   return {
     ...state,
     queue,
+    current:
+      current.trackId === trackId || current.song?.id === trackId
+        ? {}
+        : current,
     savedPlayIndex: queue.findIndex((item) => item.uuid === current.uuid),
   }
 }
