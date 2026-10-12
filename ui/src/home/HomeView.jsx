@@ -7,7 +7,7 @@ import {
 } from 'react-admin'
 import { useDispatch, useSelector } from 'react-redux'
 import { useHistory } from 'react-router-dom'
-import { CircularProgress } from '@material-ui/core'
+import { CircularProgress, useMediaQuery } from '@material-ui/core'
 import SearchIcon from '@material-ui/icons/Search'
 import TuneIcon from '@material-ui/icons/Tune'
 import SortIcon from '@material-ui/icons/Sort'
@@ -300,6 +300,20 @@ const HomeView = () => {
   const playerState = useSelector((state) => state.player)
   const permissions = useSelector((state) => state.admin?.permissions)
 
+  // En el móvil Inicio se reduce a la biblioteca de canciones y su buscador.
+  // Se ocultan "lo que suena", "escuchado recientemente", "playlists para
+  // ti" y los botones de filtro, ordenar y subir música: nada de eso se puede
+  // aprovechar cómodamente en una pantalla de 390px y, en el caso de las
+  // tarjetas, ocupan más alto que la propia biblioteca.
+  // 768px y no el `xs` de Material-UI (600px) para que el iPhone en
+  // horizontal siga entrando: se usa el mismo corte que el reproductor.
+  // `noSsr` es necesario porque sin él useMediaQuery devuelve false en el
+  // primer render y devuelve el valor real en el siguiente; el efecto de
+  // carga se dispararía antes con isPhone=false y pediría los álbumes y las
+  // playlists que acto seguido no se pintan. La app no usa renderizado en
+  // servidor, así que no hay hidratación que pueda desajustar.
+  const isPhone = useMediaQuery('(max-width:768px)', { noSsr: true })
+
   const queue = playerState?.queue || []
   const current = playerState?.current || {}
   const [query, setQuery] = useState('')
@@ -311,22 +325,26 @@ const HomeView = () => {
 
   useEffect(() => {
     let alive = true
-    dataProvider
-      .getList('album', {
-        pagination: { page: 1, perPage: 5 },
-        sort: { field: 'play_date', order: 'DESC' },
-        filter: { recently_played: true },
-      })
-      .then((res) => alive && setRecentAlbums(res.data || []))
-      .catch(() => alive && setRecentAlbums([]))
-    dataProvider
-      .getList('playlist', {
-        pagination: { page: 1, perPage: 4 },
-        sort: { field: 'name', order: 'ASC' },
-        filter: {},
-      })
-      .then((res) => alive && setPlaylists(res.data || []))
-      .catch(() => alive && setPlaylists([]))
+    // En móvil esas dos secciones no se pintan, así que no se piden: se
+    // ahorran dos llamadas a la API en cada carga de la portada.
+    if (!isPhone) {
+      dataProvider
+        .getList('album', {
+          pagination: { page: 1, perPage: 5 },
+          sort: { field: 'play_date', order: 'DESC' },
+          filter: { recently_played: true },
+        })
+        .then((res) => alive && setRecentAlbums(res.data || []))
+        .catch(() => alive && setRecentAlbums([]))
+      dataProvider
+        .getList('playlist', {
+          pagination: { page: 1, perPage: 4 },
+          sort: { field: 'name', order: 'ASC' },
+          filter: {},
+        })
+        .then((res) => alive && setPlaylists(res.data || []))
+        .catch(() => alive && setPlaylists([]))
+    }
     dataProvider
       .getList('song', {
         pagination: { page: 1, perPage: 10 },
@@ -342,7 +360,7 @@ const HomeView = () => {
     return () => {
       alive = false
     }
-  }, [dataProvider])
+  }, [dataProvider, isPhone])
 
   const reloadSongs = useCallback(() => {
     dataProvider
@@ -459,24 +477,29 @@ const HomeView = () => {
           />
         </div>
 
-        <button
-          className="mm-pill-btn"
-          onClick={() => history.push('/song')}
-          data-testid="home-filters"
-        >
-          <TuneIcon /> {translate('home.filters', { _: 'Filtros' })}
-        </button>
-        <button
-          className="mm-pill-btn"
-          onClick={() => history.push('/song')}
-          data-testid="home-sort"
-        >
-          <SortIcon />{' '}
-          {translate('home.sort', { _: 'Ordenar: Fecha agregada' })}
-        </button>
-        <a className="mm-pill-btn blue" href="/downloader">
-          <CloudUploadIcon /> {translate('home.upload', { _: 'Subir música' })}
-        </a>
+        {!isPhone && (
+          <>
+            <button
+              className="mm-pill-btn"
+              onClick={() => history.push('/song')}
+              data-testid="home-filters"
+            >
+              <TuneIcon /> {translate('home.filters', { _: 'Filtros' })}
+            </button>
+            <button
+              className="mm-pill-btn"
+              onClick={() => history.push('/song')}
+              data-testid="home-sort"
+            >
+              <SortIcon />{' '}
+              {translate('home.sort', { _: 'Ordenar: Fecha agregada' })}
+            </button>
+            <a className="mm-pill-btn blue" href="/downloader">
+              <CloudUploadIcon />{' '}
+              {translate('home.upload', { _: 'Subir música' })}
+            </a>
+          </>
+        )}
         <div style={{ display: 'flex', gap: 14, justifyContent: 'flex-end' }}>
           <button
             className="mm-icon-btn"
@@ -502,136 +525,138 @@ const HomeView = () => {
 
       <div className="mm-content-grid">
         <div>
-          <NowPlaying queue={queue} current={current} />
+          {!isPhone && <NowPlaying queue={queue} current={current} />}
 
-          <div className="mm-row-grid">
-            <section className="mm-card mm-section-card">
-              <div className="mm-section-head">
-                <h4>
-                  {translate('home.recentlyPlayed', {
-                    _: 'Escuchado recientemente',
-                  })}
-                </h4>
-                <a href="#/album/recentlyPlayed?sort=play_date&order=DESC&filter=%7B%22recently_played%22%3Atrue%7D">
-                  {translate('home.seeAll', { _: 'Ver todo' })}
-                </a>
-              </div>
+          {!isPhone && (
+            <div className="mm-row-grid">
+              <section className="mm-card mm-section-card">
+                <div className="mm-section-head">
+                  <h4>
+                    {translate('home.recentlyPlayed', {
+                      _: 'Escuchado recientemente',
+                    })}
+                  </h4>
+                  <a href="#/album/recentlyPlayed?sort=play_date&order=DESC&filter=%7B%22recently_played%22%3Atrue%7D">
+                    {translate('home.seeAll', { _: 'Ver todo' })}
+                  </a>
+                </div>
 
-              {!recentAlbums ? (
-                <div className="mm-spinner">
-                  <CircularProgress size={24} />
-                </div>
-              ) : recentAlbums.length === 0 ? (
-                <div className="mm-empty">
-                  {translate('home.noRecent', {
-                    _: 'Aún no hay reproducciones.',
-                  })}
-                </div>
-              ) : (
-                <div className="mm-cover-grid">
-                  {recentAlbums.map((album) => (
-                    <button
-                      key={album.id}
-                      className="mm-cover-card"
-                      onClick={() => history.push(`/album/${album.id}/show`)}
-                      data-testid="home-album-card"
-                    >
-                      <img
-                        className="mm-cover-box"
-                        src={subsonic.getCoverArtUrl(album, 300, true)}
-                        alt={album.name}
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                      <span
-                        className="mm-cover-play"
-                        role="button"
-                        aria-label="play-album"
-                        data-testid="home-album-play"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          dataProvider
-                            .getList('song', {
-                              pagination: { page: 1, perPage: -1 },
-                              sort: { field: 'album', order: 'ASC' },
-                              filter: { album_id: album.id },
-                            })
-                            .then((res) => {
-                              const data = {}
-                              const ids = (res.data || []).map((s) => {
-                                data[s.id] = s
-                                return s.id
-                              })
-                              if (ids.length > 0)
-                                dispatch(playTracks(data, ids))
-                            })
-                            .catch(() => {})
-                        }}
+                {!recentAlbums ? (
+                  <div className="mm-spinner">
+                    <CircularProgress size={24} />
+                  </div>
+                ) : recentAlbums.length === 0 ? (
+                  <div className="mm-empty">
+                    {translate('home.noRecent', {
+                      _: 'Aún no hay reproducciones.',
+                    })}
+                  </div>
+                ) : (
+                  <div className="mm-cover-grid">
+                    {recentAlbums.map((album) => (
+                      <button
+                        key={album.id}
+                        className="mm-cover-card"
+                        onClick={() => history.push(`/album/${album.id}/show`)}
+                        data-testid="home-album-card"
                       >
-                        <PlayArrowIcon />
-                      </span>
-                      <b>{album.name}</b>
-                      <span>{album.albumArtist || album.artist}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="mm-card mm-section-card">
-              <div className="mm-section-head">
-                <h4>
-                  {translate('home.playlists', { _: 'Playlists para ti' })}
-                </h4>
-                <a href="#/playlist">
-                  {translate('home.seeAll', { _: 'Ver todo' })}
-                </a>
-              </div>
-
-              {!playlists ? (
-                <div className="mm-spinner">
-                  <CircularProgress size={24} />
-                </div>
-              ) : playlists.length === 0 ? (
-                <div className="mm-empty">
-                  {translate('home.noPlaylists', {
-                    _: 'Aún no hay playlists.',
-                  })}
-                </div>
-              ) : (
-                <div className="mm-cover-grid">
-                  {playlists.map((pl) => (
-                    <button
-                      key={pl.id}
-                      className="mm-cover-card"
-                      onClick={() => history.push(`/playlist/${pl.id}/show`)}
-                      data-testid="home-playlist-card"
-                    >
-                      <span className="mm-cover-box">
-                        <MusicNoteIcon
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            padding: '30%',
-                            color: 'rgba(255,255,255,.85)',
+                        <img
+                          className="mm-cover-box"
+                          src={subsonic.getCoverArtUrl(album, 300, true)}
+                          alt={album.name}
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
                           }}
                         />
-                      </span>
-                      <b>{pl.name}</b>
-                      <span>
-                        {translate('home.songsCount', {
-                          _: `${pl.songCount ?? '?'} canciones`,
-                          smart_count: pl.songCount,
-                        })}
-                      </span>
-                    </button>
-                  ))}
+                        <span
+                          className="mm-cover-play"
+                          role="button"
+                          aria-label="play-album"
+                          data-testid="home-album-play"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            dataProvider
+                              .getList('song', {
+                                pagination: { page: 1, perPage: -1 },
+                                sort: { field: 'album', order: 'ASC' },
+                                filter: { album_id: album.id },
+                              })
+                              .then((res) => {
+                                const data = {}
+                                const ids = (res.data || []).map((s) => {
+                                  data[s.id] = s
+                                  return s.id
+                                })
+                                if (ids.length > 0)
+                                  dispatch(playTracks(data, ids))
+                              })
+                              .catch(() => {})
+                          }}
+                        >
+                          <PlayArrowIcon />
+                        </span>
+                        <b>{album.name}</b>
+                        <span>{album.albumArtist || album.artist}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="mm-card mm-section-card">
+                <div className="mm-section-head">
+                  <h4>
+                    {translate('home.playlists', { _: 'Playlists para ti' })}
+                  </h4>
+                  <a href="#/playlist">
+                    {translate('home.seeAll', { _: 'Ver todo' })}
+                  </a>
                 </div>
-              )}
-            </section>
-          </div>
+
+                {!playlists ? (
+                  <div className="mm-spinner">
+                    <CircularProgress size={24} />
+                  </div>
+                ) : playlists.length === 0 ? (
+                  <div className="mm-empty">
+                    {translate('home.noPlaylists', {
+                      _: 'Aún no hay playlists.',
+                    })}
+                  </div>
+                ) : (
+                  <div className="mm-cover-grid">
+                    {playlists.map((pl) => (
+                      <button
+                        key={pl.id}
+                        className="mm-cover-card"
+                        onClick={() => history.push(`/playlist/${pl.id}/show`)}
+                        data-testid="home-playlist-card"
+                      >
+                        <span className="mm-cover-box">
+                          <MusicNoteIcon
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              padding: '30%',
+                              color: 'rgba(255,255,255,.85)',
+                            }}
+                          />
+                        </span>
+                        <b>{pl.name}</b>
+                        <span>
+                          {translate('home.songsCount', {
+                            _: `${pl.songCount ?? '?'} canciones`,
+                            smart_count: pl.songCount,
+                          })}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          )}
 
           <section className="mm-card mm-library">
             <div className="mm-library-head">

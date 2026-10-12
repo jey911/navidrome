@@ -7,6 +7,7 @@ import HomeView from './HomeView'
 import { setTrack, addTracks, playTracks, removeTrack } from '../actions'
 import { deleteTrackViaEmepetre } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
+import { setViewport } from '../setupTests'
 
 vi.mock('react-admin', async (importOriginal) => {
   const actual = await importOriginal()
@@ -143,6 +144,46 @@ describe('<HomeView />', () => {
     // Hi-Res por ser FLAC + total de canciones
     expect(screen.getByText('Hi-Res')).toBeInTheDocument()
     expect(screen.getByText(/524 canciones en total/)).toBeInTheDocument()
+  })
+
+  describe('en móvil', () => {
+    beforeEach(() => setViewport({ phone: true }))
+    afterEach(() => setViewport({ phone: false }))
+
+    it('deja solo la biblioteca de canciones y su buscador', async () => {
+      renderView({
+        queue: [queueItem],
+        current: { uuid: 'u1', trackId: 's1', song },
+        mode: 'order',
+      })
+      // Lo que se conserva
+      expect(
+        await screen.findByTestId('home-library-search'),
+      ).toBeInTheDocument()
+      expect(await screen.findByTestId('home-song-row')).toBeInTheDocument()
+      expect(screen.getByText('Biblioteca de canciones')).toBeInTheDocument()
+
+      // Lo que se oculta
+      expect(screen.queryByTestId('home-now-title')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('home-album-card')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('home-playlist-card')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('home-filters')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('home-sort')).not.toBeInTheDocument()
+      expect(screen.queryByText('Subir música')).not.toBeInTheDocument()
+      expect(
+        screen.queryByText('Escuchado recientemente'),
+      ).not.toBeInTheDocument()
+      expect(screen.queryByText('Playlists para ti')).not.toBeInTheDocument()
+    })
+
+    it('no pide los álbumes ni las playlists que no va a pintar', async () => {
+      renderView()
+      await screen.findByTestId('home-song-row')
+      const recursos = mockGetList.mock.calls.map((c) => c[0])
+      expect(recursos).toContain('song')
+      expect(recursos).not.toContain('album')
+      expect(recursos).not.toContain('playlist')
+    })
   })
 
   it('reproduce desde la fila y encola', async () => {
