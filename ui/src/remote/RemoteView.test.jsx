@@ -62,7 +62,7 @@ describe('<RemoteView />', () => {
         's1',
         '4321',
         'toggle',
-        undefined,
+        expect.objectContaining({ requestId: expect.any(String) }),
       ),
     )
   })
@@ -82,9 +82,14 @@ describe('<RemoteView />', () => {
     fireEvent.click(screen.getByTestId('remote-play-now'))
 
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'playTrack', {
-        id: 's2',
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'playTrack',
+        expect.objectContaining({
+          id: 's2',
+        }),
+      ),
     )
     expect(searchSongs).toHaveBeenCalledWith('tito', 25)
   })
@@ -105,9 +110,14 @@ describe('<RemoteView />', () => {
     fireEvent.click(screen.getAllByTestId('remote-result-title')[0])
 
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'playTrack', {
-        id: 's2',
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'playTrack',
+        expect.objectContaining({
+          id: 's2',
+        }),
+      ),
     )
   })
 
@@ -130,9 +140,14 @@ describe('<RemoteView />', () => {
     fireEvent.mouseUp(seek)
 
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'seek', {
-        seconds: 120,
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'seek',
+        expect.objectContaining({
+          seconds: 120,
+        }),
+      ),
     )
   })
 
@@ -162,15 +177,25 @@ describe('<RemoteView />', () => {
     expect(await screen.findByText('Otra')).toBeInTheDocument()
     fireEvent.click(screen.getByTestId('remote-queue'))
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'queueTrack', {
-        id: 's3',
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'queueTrack',
+        expect.objectContaining({
+          id: 's3',
+        }),
+      ),
     )
     fireEvent.click(screen.getByTestId('remote-play-next'))
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'playNextTrack', {
-        id: 's3',
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'playNextTrack',
+        expect.objectContaining({
+          id: 's3',
+        }),
+      ),
     )
   })
 
@@ -193,9 +218,14 @@ describe('<RemoteView />', () => {
       expect.stringContaining('Borrable'),
     )
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'deleteTrack', {
-        id: 's4',
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'deleteTrack',
+        expect.objectContaining({
+          id: 's4',
+        }),
+      ),
     )
   })
 
@@ -240,9 +270,14 @@ describe('<RemoteView />', () => {
     )
     fireEvent.click(screen.getByTestId('remote-delete-current'))
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'deleteTrack', {
-        id: 'cur1',
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'deleteTrack',
+        expect.objectContaining({
+          id: 'cur1',
+        }),
+      ),
     )
   })
 
@@ -329,9 +364,14 @@ describe('<RemoteView />', () => {
     expect(slider.value).toBe('80')
     fireEvent.mouseUp(slider)
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'volume', {
-        level: 0.8,
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'volume',
+        expect.objectContaining({
+          level: 0.8,
+        }),
+      ),
     )
     await waitFor(() => expect(slider).not.toBeDisabled())
     expect(slider.value).toBe('80')
@@ -348,10 +388,47 @@ describe('<RemoteView />', () => {
     fireEvent.change(slider, { target: { value: '0' } })
     fireEvent.keyUp(slider, { key: 'ArrowLeft' })
     await waitFor(() =>
-      expect(sendCommand).toHaveBeenCalledWith('s1', '4321', 'volume', {
-        level: 0,
-      }),
+      expect(sendCommand).toHaveBeenCalledWith(
+        's1',
+        '4321',
+        'volume',
+        expect.objectContaining({
+          level: 0,
+        }),
+      ),
     )
     expect(slider.value).toBe('0')
+  })
+  it('shows the pending queue and waits for the laptop to acknowledge a command', async () => {
+    storeTarget('4321')
+    const snapshot = {
+      at: new Date().toISOString(),
+      title: 'Actual',
+      queue: [{ id: 'q1', title: 'Petición pendiente', artist: 'Artista' }],
+    }
+    fetchState.mockResolvedValue(snapshot)
+    sendCommand.mockImplementation(async (session, code, action, payload) => {
+      fetchState.mockResolvedValue({
+        ...snapshot,
+        commandId: payload.requestId,
+      })
+    })
+    render(<RemoteView />)
+    expect(await screen.findByText('Petición pendiente')).toBeInTheDocument()
+    expect(screen.getByText('Conectado')).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle('Play/Pausa'))
+    expect(await screen.findByText('Orden aplicada')).toBeInTheDocument()
+  })
+
+  it('searches while typing without pressing a search button', async () => {
+    storeTarget('4321')
+    searchSongs.mockResolvedValue([
+      { id: 'live', title: 'Resultado en vivo', artist: 'A' },
+    ])
+    render(<RemoteView />)
+    fireEvent.change(await screen.findByTestId('remote-search-input'), {
+      target: { value: 'live' },
+    })
+    expect(await screen.findByText('Resultado en vivo')).toBeInTheDocument()
   })
 })

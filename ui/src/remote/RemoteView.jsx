@@ -160,6 +160,9 @@ const RemoteView = () => {
   const [state, setState] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [connection, setConnection] = useState('Conectando…')
+  const [commandStatus, setCommandStatus] = useState('')
+  const pendingCommand = useRef(null)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [searching, setSearching] = useState(false)
@@ -191,6 +194,28 @@ const RemoteView = () => {
     if (timestamp && timestamp < lastStateAt.current) return
     lastStateAt.current = timestamp || lastStateAt.current
     setState(s)
+    const fresh = s && timestamp && Date.now() - timestamp < 15000
+    setConnection(fresh ? 'Conectado' : 'Esperando al reproductor…')
+    if (pendingCommand.current && s?.commandId === pendingCommand.current.id) {
+      const pending = pendingCommand.current
+      setCommandStatus(
+        s.commandError ||
+          (['queueTrack', 'playNextTrack'].includes(pending.action)
+            ? 'Canción añadida a la cola'
+            : 'Orden aplicada'),
+      )
+      if (!s.commandError && pending.action === 'deleteTrack')
+        setResults((rows) => rows.filter((song) => song.id !== pending.songId))
+      pendingCommand.current = null
+    } else if (
+      pendingCommand.current &&
+      Date.now() - pendingCommand.current.at > 10000
+    ) {
+      setCommandStatus(
+        'Sin confirmación del equipo. Revisa la conexión antes de reintentar.',
+      )
+      pendingCommand.current = null
+    }
     const pending = volumePending.current
     if (
       pending &&
@@ -220,6 +245,9 @@ const RemoteView = () => {
     setVolumeDraft(null)
     volumeEdit.current = null
     volumePending.current = null
+    pendingCommand.current = null
+    setCommandStatus('')
+    setConnection('Conectando…')
     setTarget(null)
     lastStateAt.current = 0
     setState(null)
@@ -271,7 +299,9 @@ const RemoteView = () => {
       fetchState(sessionId)
         .then((s) => alive && handleState(s))
         .catch((e) => {
-          if (!alive || e?.status !== 404) return
+          if (!alive) return
+          setConnection('Reconectando…')
+          if (e?.status !== 404) return
           setState(null)
           listSessions()
             .then((list) => {
@@ -308,11 +338,25 @@ const RemoteView = () => {
     setBusy(true)
     setError('')
     try {
-      await sendCommand(target.sessionId, code, action, payload)
+      const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      pendingCommand.current = {
+        id: requestId,
+        at: Date.now(),
+        action,
+        songId: payload?.id,
+      }
+      setCommandStatus('Enviando orden…')
+      await sendCommand(target.sessionId, code, action, {
+        ...payload,
+        requestId,
+      })
+      setCommandStatus('Orden enviada · esperando confirmación')
       const s = await fetchState(target.sessionId).catch(() => null)
       if (s) handleState(s)
       return true
     } catch (e) {
+      pendingCommand.current = null
+      setCommandStatus('')
       setError(
         e?.status === 403
           ? translate('remote.badCode', { _: 'Código incorrecto' })
@@ -325,9 +369,11 @@ const RemoteView = () => {
     }
   }
 
-  const runSearch = async () => {
+  const runSearch = useCallback(async () => {
     const q = query.trim()
     if (!q) {
+      searchRequest.current++
+      setSearching(false)
       setResults([])
       setHasSearched(false)
       setSearchError('')
@@ -354,7 +400,18 @@ const RemoteView = () => {
     } finally {
       if (request === searchRequest.current) setSearching(false)
     }
-  }
+  }, [query, translate])
+  const invalidateSearch = useCallback(() => {
+    searchRequest.current++
+  }, [])
+  useEffect(() => {
+    invalidateSearch()
+    const timer = setTimeout(runSearch, 180)
+    return () => {
+      clearTimeout(timer)
+      invalidateSearch()
+    }
+  }, [runSearch, invalidateSearch])
 
   const playSong = (song) => cmd('playTrack', { id: song.id })
   // The paired player uses the same explicit FIFO queue as the library.
@@ -421,6 +478,14 @@ const RemoteView = () => {
 
   return (
     <div className={`${classes.root} mm-remote`}>
+      {target && (
+        <div className="mm-remote-status" role="status">
+          <span className={connection === 'Conectado' ? 'connected' : ''}>
+            {connection}
+          </span>
+          <small>{commandStatus}</small>
+        </div>
+      )}
       <Typography variant="h5" gutterBottom>
         {translate('menu.remote', { _: 'Control remoto' })}
       </Typography>
@@ -593,6 +658,29 @@ const RemoteView = () => {
                 <strong>{state.nextTitle}</strong>
                 <span>{state.nextArtist}</span>
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+      {target && (
+        <Card className={classes.card}>
+          <CardContent>
+            <Typography variant="subtitle1">
+              Cola manual · {state?.queue?.length || 0}
+            </Typography>
+            {state?.queue?.length ? (
+              <ol className="mm-remote-queue">
+                {state.queue.map((song, index) => (
+                  <li key={`${song.id}-${index}`}>
+                    <strong>{song.title}</strong>
+                    <span>{song.artist}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <Typography color="textSecondary">
+                Cola vacía: añade canciones con ＋.
+              </Typography>
             )}
           </CardContent>
         </Card>

@@ -1,0 +1,36 @@
+.mm-mobile-navigation {
+  position: fixed;
+  z-index: 1200;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: #0b1626;
+  border-top: 1px solid #26354b;
+}
+.mm-mobile-navigation a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 48px;
+  color: #9eb1cb;
+  text-decoration: none;
+  font-size: 12px;
+  border-radius: 12px;
+}
+.mm-mobile-navigation a.active {
+  color: #83c0ff;
+  background: #142a45;
+}
+.mm-mobile-navigation a:focus-visible {
+  outline: 2px solid #83c0ff;
+}
+@media (max-width: 768px) {
+  [class*='RaAppBar-menuButton-'] {
+    display: none;
+  }
+}

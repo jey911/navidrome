@@ -6,7 +6,7 @@ import {
   useRefresh,
 } from 'react-admin'
 import { useDispatch, useSelector } from 'react-redux'
-import { useHistory } from 'react-router-dom'
+import { useHistory, useLocation } from 'react-router-dom'
 import { CircularProgress, useMediaQuery } from '@material-ui/core'
 import SearchIcon from '@material-ui/icons/Search'
 import TuneIcon from '@material-ui/icons/Tune'
@@ -40,6 +40,7 @@ import { deleteTrackFromServer } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
 import { LoveButton, SongContextMenu, SongPlayButton, Title } from '../common'
 import { searchSongs } from '../remote/searchSongs'
+import { MobileSongRow, CompactPlayback } from './MobilePlayback'
 import './home.css'
 
 const LOSSLESS = new Set(['flac', 'alac', 'wav', 'aiff', 'dsd', 'dff'])
@@ -313,25 +314,15 @@ const HomeView = () => {
   const [scanning, setScanning] = useState(false)
   const [libraryRevision, setLibraryRevision] = useState(0)
   const [searching, setSearching] = useState(false)
-  const [rowPlayback, setRowPlayback] = useState({
-    playing: false,
-    progress: 0,
-  })
-  useEffect(() => {
-    if (!isPhone) return undefined
-    const update = () => {
-      const audio = getAudioInstance()
-      setRowPlayback({
-        playing: !!audio && !audio.paused && !audio.ended,
-        progress: audio?.duration
-          ? Math.min(1, audio.currentTime / audio.duration)
-          : 0,
-      })
-    }
-    update()
-    const timer = setInterval(update, 500)
-    return () => clearInterval(timer)
-  }, [isPhone, current?.trackId])
+  const location = useLocation()
+  const queueView =
+    isPhone && new URLSearchParams(location.search).get('view') === 'queue'
+  const [page, setPage] = useState(1)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [deleting, setDeleting] = useState(new Set())
+  const loadGeneration = useRef(0)
+  const loadingMoreRef = useRef(false)
+  const loadMoreAnchor = useRef(null)
   const playFromRow = (song) => {
     const audio = getAudioInstance()
     if (
@@ -371,10 +362,18 @@ const HomeView = () => {
     }
   }, [dataProvider, isPhone])
 
+  const invalidateLibrary = useCallback(() => {
+    loadGeneration.current++
+  }, [])
+
   // Search replaces rows inside the library. Cleanup also rejects delayed
   // replies from an older query, including when the input is cleared.
   useEffect(() => {
     let alive = true
+    const generation = ++loadGeneration.current
+    loadingMoreRef.current = false
+    setLoadingMore(false)
+    setPage(1)
     const q = query.trim()
     const load = async () => {
       setSearching(true)
@@ -391,21 +390,21 @@ const HomeView = () => {
           total = rows.length
         } else {
           const response = await dataProvider.getList('song', {
-            pagination: { page: 1, perPage: 10 },
+            pagination: { page: 1, perPage: isPhone ? 30 : 10 },
             sort: { field: 'recently_added', order: 'DESC' },
             filter: {},
           })
           rows = response.data || []
           total = response.total
         }
-        if (alive) {
+        if (alive && generation === loadGeneration.current) {
           setLatestSongs(
             rows.filter((song) => !deletedSongIds.current.has(song.id)),
           )
           setSongsTotal(total)
         }
       } catch {
-        if (alive) {
+        if (alive && generation === loadGeneration.current) {
           setLatestSongs([])
           notify(
             'No se pudo cargar la biblioteca. Revisa la conexión.',
@@ -421,8 +420,64 @@ const HomeView = () => {
     return () => {
       alive = false
       if (timer) clearTimeout(timer)
+      invalidateLibrary()
     }
-  }, [query, dataProvider, libraryRevision, notify])
+  }, [query, dataProvider, libraryRevision, notify, isPhone, invalidateLibrary])
+  const loadMore = useCallback(async () => {
+    if (
+      !isPhone ||
+      query.trim() ||
+      loadingMoreRef.current ||
+      !latestSongs ||
+      page * 30 >= songsTotal
+    )
+      return
+    const generation = loadGeneration.current
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    try {
+      const response = await dataProvider.getList('song', {
+        pagination: { page: page + 1, perPage: 30 },
+        sort: { field: 'recently_added', order: 'DESC' },
+        filter: {},
+      })
+      if (generation !== loadGeneration.current) return
+      setLatestSongs((rows) => {
+        const seen = new Set(rows.map((song) => song.id))
+        return [
+          ...rows,
+          ...response.data.filter(
+            (song) =>
+              !seen.has(song.id) && !deletedSongIds.current.has(song.id),
+          ),
+        ]
+      })
+      setPage((value) => value + 1)
+    } catch {
+      if (generation === loadGeneration.current)
+        notify(
+          'No se pudieron cargar más canciones. Puedes reintentar.',
+          'warning',
+        )
+    } finally {
+      if (generation === loadGeneration.current) {
+        loadingMoreRef.current = false
+        setLoadingMore(false)
+      }
+    }
+  }, [isPhone, query, latestSongs, page, songsTotal, dataProvider, notify])
+  useEffect(() => {
+    if (!loadMoreAnchor.current || typeof IntersectionObserver === 'undefined')
+      return undefined
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) loadMore()
+      },
+      { rootMargin: '200px' },
+    )
+    observer.observe(loadMoreAnchor.current)
+    return () => observer.disconnect()
+  }, [loadMore, queueView])
   const reloadSongs = useCallback(
     () => setLibraryRevision((value) => value + 1),
     [],
@@ -454,9 +509,16 @@ const HomeView = () => {
     dispatch(playTracks(data, ids, item.uuid))
   }
 
-  const queueSong = (song) => dispatch(addTracks({ [song.id]: song }))
+  const queueSong = (song) => {
+    dispatch(addTracks({ [song.id]: song }))
+    notify(
+      `Añadida a la cola · posición ${displayQueue.length + 1}: ${song.title}`,
+      'info',
+    )
+  }
 
   const deleteSong = async (song) => {
+    if (deleting.has(song.id)) return
     if (
       !window.confirm(
         `¿Borrar "${song.title}" de la biblioteca? El archivo se elimina, no se puede deshacer.`,
@@ -464,6 +526,8 @@ const HomeView = () => {
     ) {
       return
     }
+    setDeleting((ids) => new Set(ids).add(song.id))
+    notify(`Borrando: ${song.title}…`, 'info')
     try {
       const res = await deleteTrackFromServer(song.id)
       if (res?.deleted?.includes(song.id)) {
@@ -493,11 +557,19 @@ const HomeView = () => {
           : e.detail || e.message || 'Borrado fallido: revisa la conexión.',
         'warning',
       )
+    } finally {
+      setDeleting((ids) => {
+        const next = new Set(ids)
+        next.delete(song.id)
+        return next
+      })
     }
   }
 
   return (
-    <div className="mm-home">
+    <div
+      className={`mm-home ${queueView ? 'mm-show-queue' : 'mm-show-library'}`}
+    >
       <Title title="Mi Música" />
 
       {!isPhone && (
@@ -524,6 +596,7 @@ const HomeView = () => {
         </div>
       )}
 
+      {isPhone && current?.song && <CompactPlayback song={current.song} />}
       <div className="mm-content-grid">
         <div>
           {!isPhone && <NowPlaying queue={queue} current={current} />}
@@ -659,381 +732,350 @@ const HomeView = () => {
             </div>
           )}
 
-          <section className="mm-card mm-library">
-            <div className="mm-library-head">
-              <div>
-                <h3>
-                  {translate('home.library', { _: 'Biblioteca de canciones' })}
-                </h3>
-                <p>
-                  {songsTotal != null
-                    ? translate('home.librarySubtitle', {
-                        _: query.trim()
-                          ? `${songsTotal} resultados`
-                          : `${songsTotal} canciones en total · últimas agregadas`,
-                      })
-                    : translate('home.librarySubtitleShort', {
-                        _: 'Últimas canciones agregadas',
-                      })}
-                </p>
-              </div>
-
-              <div className="mm-library-tools">
-                <div className="mm-library-search">
-                  {searching ? <CircularProgress size={18} /> : <SearchIcon />}
-                  <input
-                    type="text"
-                    placeholder={translate('home.librarySearch', {
-                      _: 'Buscar en la biblioteca...',
+          {(!isPhone || !queueView) && (
+            <section className="mm-card mm-library">
+              <div className="mm-library-head">
+                <div>
+                  <h3>
+                    {translate('home.library', {
+                      _: 'Biblioteca de canciones',
                     })}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    data-testid="home-library-search"
-                  />
+                  </h3>
+                  <p>
+                    {songsTotal != null
+                      ? translate('home.librarySubtitle', {
+                          _: query.trim()
+                            ? `${songsTotal} resultados`
+                            : `${songsTotal} canciones en total · últimas agregadas`,
+                        })
+                      : translate('home.librarySubtitleShort', {
+                          _: 'Últimas canciones agregadas',
+                        })}
+                  </p>
+                </div>
+
+                <div className="mm-library-tools">
+                  <div className="mm-library-search">
+                    {searching ? (
+                      <CircularProgress size={18} />
+                    ) : (
+                      <SearchIcon />
+                    )}
+                    <input
+                      type="text"
+                      placeholder={translate('home.librarySearch', {
+                        _: 'Buscar en la biblioteca...',
+                      })}
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      data-testid="home-library-search"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {!latestSongs ? (
-              <div className="mm-spinner">
-                <CircularProgress size={24} />
-              </div>
-            ) : latestSongs.length === 0 ? (
-              <div className="mm-empty">
-                {translate('home.noSongs', { _: 'No hay canciones.' })}
-              </div>
-            ) : (
-              <table data-testid="home-songs-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: 44 }} />
-                    <th>{translate('home.colTitle', { _: 'Título' })}</th>
-                    <th>{translate('home.colArtist', { _: 'Artista' })}</th>
-                    <th>{translate('home.colAlbum', { _: 'Álbum' })}</th>
-                    <th>{translate('home.colGenre', { _: 'Género' })}</th>
-                    <th>{translate('home.colDuration', { _: 'Duración' })}</th>
-                    <th>
-                      {translate('home.colAdded', { _: 'Fecha agregada' })}
-                    </th>
-                    <th>{translate('home.colQuality', { _: 'Calidad' })}</th>
-                    <th>{translate('home.colActions', { _: 'Acciones' })}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {latestSongs.map((song) => {
-                    const active =
-                      (current?.trackId || current?.song?.id) === song.id
-                    if (isPhone)
+              {!latestSongs ? (
+                <div className="mm-spinner">
+                  <CircularProgress size={24} />
+                </div>
+              ) : latestSongs.length === 0 ? (
+                <div className="mm-empty">
+                  {translate('home.noSongs', { _: 'No hay canciones.' })}
+                </div>
+              ) : (
+                <table data-testid="home-songs-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 44 }} />
+                      <th>{translate('home.colTitle', { _: 'Título' })}</th>
+                      <th>{translate('home.colArtist', { _: 'Artista' })}</th>
+                      <th>{translate('home.colAlbum', { _: 'Álbum' })}</th>
+                      <th>{translate('home.colGenre', { _: 'Género' })}</th>
+                      <th>
+                        {translate('home.colDuration', { _: 'Duración' })}
+                      </th>
+                      <th>
+                        {translate('home.colAdded', { _: 'Fecha agregada' })}
+                      </th>
+                      <th>{translate('home.colQuality', { _: 'Calidad' })}</th>
+                      <th>{translate('home.colActions', { _: 'Acciones' })}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {latestSongs.map((song) => {
+                      const active =
+                        (current?.trackId || current?.song?.id) === song.id
+                      if (isPhone)
+                        return (
+                          <MobileSongRow
+                            key={song.id}
+                            song={song}
+                            active={active}
+                            onPlay={playFromRow}
+                            onQueue={queueSong}
+                            onDelete={deleteSong}
+                            deleting={deleting.has(song.id)}
+                          />
+                        )
+                      const quality = qualityOf(song)
                       return (
-                        <tr
-                          key={song.id}
-                          data-testid="home-song-row"
-                          className={`mm-mobile-song ${active ? 'is-current' : ''}`}
-                        >
-                          <td className="mm-mobile-play">
-                            <button
-                              aria-label={
-                                active && rowPlayback.playing
-                                  ? 'Pausar'
-                                  : 'Reproducir'
-                              }
-                              disabled={song.missing}
-                              data-testid="row-play"
-                              onClick={() => playFromRow(song)}
-                            >
-                              {active && rowPlayback.playing ? (
-                                <PauseIcon />
-                              ) : (
-                                <PlayArrowIcon />
-                              )}
-                            </button>
+                        <tr key={song.id} data-testid="home-song-row">
+                          <td>
+                            <SongPlayButton
+                              onPlay={(record) => dispatch(setTrack(record))}
+                              record={song}
+                            />
                           </td>
-                          <td className="mm-mobile-title">
-                            <div className="mm-truncate">{song.title}</div>
+                          <td>
+                            <div className="mm-song-cell">
+                              <div className="mm-truncate">{song.title}</div>
+                            </div>
                           </td>
-                          <td className="mm-mobile-artist">
+                          <td>
                             <div className="mm-truncate">{song.artist}</div>
                           </td>
-                          <td className="mm-mobile-actions">
+                          <td>
+                            <div className="mm-truncate">{song.album}</div>
+                          </td>
+                          <td>
+                            {song.genre ? (
+                              <span className={genreClass(song.genre)}>
+                                {song.genre}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td>{formatDuration(song.duration)}</td>
+                          <td>
+                            {song.createdAt
+                              ? new Date(song.createdAt).toLocaleDateString()
+                              : '—'}
+                          </td>
+                          <td>
+                            <span
+                              className={
+                                quality.hifi
+                                  ? 'mm-quality mm-hifi'
+                                  : 'mm-quality'
+                              }
+                            >
+                              {quality.label}
+                            </span>
+                          </td>
+                          <td>
                             <div className="mm-row-actions">
+                              <LoveButton
+                                resource="song"
+                                record={song}
+                                visible
+                              />
                               <button
-                                title="Añadir a la cola"
-                                aria-label="Añadir a la cola"
+                                title={translate('home.queue', {
+                                  _: 'Añadir a la cola',
+                                })}
                                 onClick={() => queueSong(song)}
                                 data-testid="home-song-queue"
                               >
                                 <AddIcon fontSize="small" />
                               </button>
                               <button
-                                title="Borrar de la biblioteca"
-                                aria-label="Borrar de la biblioteca"
+                                title={translate('home.delete', {
+                                  _: 'Borrar de la biblioteca',
+                                })}
                                 className="mm-danger"
                                 onClick={() => deleteSong(song)}
                                 data-testid="home-song-delete"
                               >
                                 <DeleteIcon fontSize="small" />
                               </button>
-                              <SongContextMenu
-                                resource="song"
-                                record={song}
-                                showLove={false}
-                              />
+                              <SongContextMenu record={song} />
                             </div>
                           </td>
-                          {active && (
-                            <td className="mm-mobile-progress">
-                              <div
-                                role="progressbar"
-                                aria-label="Progreso de reproducción"
-                                aria-valuenow={Math.round(
-                                  rowPlayback.progress * 100,
-                                )}
-                                aria-valuemin={0}
-                                aria-valuemax={100}
-                              >
-                                <span
-                                  style={{
-                                    width: `${rowPlayback.progress * 100}%`,
-                                  }}
-                                />
-                              </div>
-                            </td>
-                          )}
                         </tr>
                       )
-                    const quality = qualityOf(song)
-                    return (
-                      <tr key={song.id} data-testid="home-song-row">
-                        <td>
-                          <SongPlayButton
-                            onPlay={(record) => dispatch(setTrack(record))}
-                            record={song}
-                          />
-                        </td>
-                        <td>
-                          <div className="mm-song-cell">
-                            <div className="mm-truncate">{song.title}</div>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="mm-truncate">{song.artist}</div>
-                        </td>
-                        <td>
-                          <div className="mm-truncate">{song.album}</div>
-                        </td>
-                        <td>
-                          {song.genre ? (
-                            <span className={genreClass(song.genre)}>
-                              {song.genre}
-                            </span>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td>{formatDuration(song.duration)}</td>
-                        <td>
-                          {song.createdAt
-                            ? new Date(song.createdAt).toLocaleDateString()
-                            : '—'}
-                        </td>
-                        <td>
-                          <span
-                            className={
-                              quality.hifi ? 'mm-quality mm-hifi' : 'mm-quality'
-                            }
-                          >
-                            {quality.label}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="mm-row-actions">
-                            <LoveButton resource="song" record={song} visible />
-                            <button
-                              title={translate('home.queue', {
-                                _: 'Añadir a la cola',
-                              })}
-                              onClick={() => queueSong(song)}
-                              data-testid="home-song-queue"
-                            >
-                              <AddIcon fontSize="small" />
-                            </button>
-                            <button
-                              title={translate('home.delete', {
-                                _: 'Borrar de la biblioteca',
-                              })}
-                              className="mm-danger"
-                              onClick={() => deleteSong(song)}
-                              data-testid="home-song-delete"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </button>
-                            <SongContextMenu record={song} />
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-          </section>
+                    })}
+                  </tbody>
+                </table>
+              )}
+              {isPhone &&
+                !query.trim() &&
+                latestSongs &&
+                page * 30 < songsTotal && (
+                  <div ref={loadMoreAnchor} className="mm-load-more">
+                    <button
+                      disabled={loadingMore || searching}
+                      onClick={loadMore}
+                    >
+                      {loadingMore ? 'Cargando…' : 'Cargar más canciones'}
+                    </button>
+                  </div>
+                )}
+            </section>
+          )}
         </div>
 
         <div>
-          <section className="mm-card mm-queue">
-            <div className="mm-queue-head">
-              <h3>{translate('home.queue', { _: 'Cola de reproducción' })}</h3>
-              <small>
-                {displayQueue.length > 0
-                  ? translate('home.queueCount', {
-                      _: `${displayQueue.length} canciones`,
-                    })
-                  : ''}
-              </small>
-            </div>
-
-            {displayQueue.length === 0 ? (
-              <div className="mm-empty">
-                {translate('home.queueEmpty', {
-                  _: isPhone
-                    ? 'Cola vacía: añade canciones con ＋.'
-                    : 'Cola vacía: dale ▶ a algo.',
-                })}
+          {(!isPhone || queueView) && (
+            <section className="mm-card mm-queue">
+              <div className="mm-queue-head">
+                <h3>
+                  {translate('home.queue', { _: 'Cola de reproducción' })}
+                </h3>
+                <small>
+                  {displayQueue.length > 0
+                    ? translate('home.queueCount', {
+                        _: `${displayQueue.length} canciones`,
+                      })
+                    : ''}
+                </small>
               </div>
-            ) : (
-              <div className="mm-queue-list">
-                {displayQueue.map((item) => (
-                  <button
-                    key={item.uuid}
-                    className={
-                      item.uuid === current?.uuid
-                        ? 'mm-queue-item active'
-                        : 'mm-queue-item'
-                    }
-                    onClick={() => jumpToQueueItem(item)}
-                    data-testid="home-queue-item"
-                  >
-                    {item.cover ? (
-                      <img
-                        className="mm-thumb"
-                        src={item.cover}
-                        alt=""
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                        }}
-                      />
-                    ) : (
-                      <div className="mm-thumb" />
-                    )}
-                    <div className="mm-queue-info">
-                      <b>{item.name}</b>
-                      <span>{item.singer || item.song?.artist}</span>
-                    </div>
-                    <div className="mm-queue-time">
-                      {formatDuration(item.duration)}
-                    </div>
-                  </button>
-                ))}
+
+              {displayQueue.length === 0 ? (
+                <div className="mm-empty">
+                  {translate('home.queueEmpty', {
+                    _: isPhone
+                      ? 'Cola vacía: añade canciones con ＋.'
+                      : 'Cola vacía: dale ▶ a algo.',
+                  })}
+                </div>
+              ) : (
+                <div className="mm-queue-list">
+                  {displayQueue.map((item) => (
+                    <button
+                      key={item.uuid}
+                      className={
+                        item.uuid === current?.uuid
+                          ? 'mm-queue-item active'
+                          : 'mm-queue-item'
+                      }
+                      onClick={() => jumpToQueueItem(item)}
+                      data-testid="home-queue-item"
+                    >
+                      {item.cover ? (
+                        <img
+                          className="mm-thumb"
+                          src={item.cover}
+                          alt=""
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <div className="mm-thumb" />
+                      )}
+                      <div className="mm-queue-info">
+                        <b>{item.name}</b>
+                        <span>{item.singer || item.song?.artist}</span>
+                      </div>
+                      <div className="mm-queue-time">
+                        {formatDuration(item.duration)}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {!isPhone && (
+            <section className="mm-card mm-quick-tools">
+              <h3>
+                {translate('home.quickTools', { _: 'Herramientas rápidas' })}
+              </h3>
+
+              <div className="mm-tool-list">
+                <button
+                  className="mm-tool-item"
+                  onClick={quickScan}
+                  disabled={scanning}
+                  data-testid="home-tool-scan"
+                >
+                  <div className="mm-tool-icon cyan">
+                    <SyncIcon />
+                  </div>
+                  <div className="mm-tool-copy">
+                    <b>{translate('home.toolScan', { _: 'Sincronización' })}</b>
+                    <span>
+                      {translate('home.toolScanDesc', {
+                        _: 'Sincroniza con carpetas monitoreadas',
+                      })}
+                    </span>
+                  </div>
+                  <ChevronRightIcon />
+                </button>
+
+                <a className="mm-tool-item" href="#/folders">
+                  <div className="mm-tool-icon orange">
+                    <FolderOpenIcon />
+                  </div>
+                  <div className="mm-tool-copy">
+                    <b>
+                      {translate('home.toolFolders', {
+                        _: 'Carpetas de música',
+                      })}
+                    </b>
+                    <span>
+                      {translate('home.toolFoldersDesc', {
+                        _: 'Navega Género / Artista / Álbum del disco',
+                      })}
+                    </span>
+                  </div>
+                  <ChevronRightIcon />
+                </a>
+
+                <a className="mm-tool-item" href="/downloader">
+                  <div className="mm-tool-icon blue">
+                    <CloudDownloadIcon />
+                  </div>
+                  <div className="mm-tool-copy">
+                    <b>
+                      {translate('home.toolDownloader', {
+                        _: 'Descargas',
+                      })}
+                    </b>
+                    <span>
+                      {translate('home.toolDownloaderDesc', {
+                        _: 'Baja y organiza música nueva',
+                      })}
+                    </span>
+                  </div>
+                  <ChevronRightIcon />
+                </a>
+
+                <a className="mm-tool-item" href="#/remote">
+                  <div className="mm-tool-icon purple">
+                    <PhonelinkIcon />
+                  </div>
+                  <div className="mm-tool-copy">
+                    <b>{translate('home.toolRemote', { _: 'Mando móvil' })}</b>
+                    <span>
+                      {translate('home.toolRemoteDesc', {
+                        _: 'Controla este reproductor desde el móvil',
+                      })}
+                    </span>
+                  </div>
+                  <ChevronRightIcon />
+                </a>
+
+                <a className="mm-tool-item" href="#/help">
+                  <div className="mm-tool-icon green">
+                    <HelpOutlineIcon />
+                  </div>
+                  <div className="mm-tool-copy">
+                    <b>{translate('home.toolHelp', { _: 'Ayuda' })}</b>
+                    <span>
+                      {translate('home.toolHelpDesc', {
+                        _: 'Auto-DJ, mando y descargas',
+                      })}
+                    </span>
+                  </div>
+                  <ChevronRightIcon />
+                </a>
               </div>
-            )}
-          </section>
-
-          <section className="mm-card mm-quick-tools">
-            <h3>
-              {translate('home.quickTools', { _: 'Herramientas rápidas' })}
-            </h3>
-
-            <div className="mm-tool-list">
-              <button
-                className="mm-tool-item"
-                onClick={quickScan}
-                disabled={scanning}
-                data-testid="home-tool-scan"
-              >
-                <div className="mm-tool-icon cyan">
-                  <SyncIcon />
-                </div>
-                <div className="mm-tool-copy">
-                  <b>{translate('home.toolScan', { _: 'Sincronización' })}</b>
-                  <span>
-                    {translate('home.toolScanDesc', {
-                      _: 'Sincroniza con carpetas monitoreadas',
-                    })}
-                  </span>
-                </div>
-                <ChevronRightIcon />
-              </button>
-
-              <a className="mm-tool-item" href="#/folders">
-                <div className="mm-tool-icon orange">
-                  <FolderOpenIcon />
-                </div>
-                <div className="mm-tool-copy">
-                  <b>
-                    {translate('home.toolFolders', {
-                      _: 'Carpetas de música',
-                    })}
-                  </b>
-                  <span>
-                    {translate('home.toolFoldersDesc', {
-                      _: 'Navega Género / Artista / Álbum del disco',
-                    })}
-                  </span>
-                </div>
-                <ChevronRightIcon />
-              </a>
-
-              <a className="mm-tool-item" href="/downloader">
-                <div className="mm-tool-icon blue">
-                  <CloudDownloadIcon />
-                </div>
-                <div className="mm-tool-copy">
-                  <b>
-                    {translate('home.toolDownloader', {
-                      _: 'Descargas',
-                    })}
-                  </b>
-                  <span>
-                    {translate('home.toolDownloaderDesc', {
-                      _: 'Baja y organiza música nueva',
-                    })}
-                  </span>
-                </div>
-                <ChevronRightIcon />
-              </a>
-
-              <a className="mm-tool-item" href="#/remote">
-                <div className="mm-tool-icon purple">
-                  <PhonelinkIcon />
-                </div>
-                <div className="mm-tool-copy">
-                  <b>{translate('home.toolRemote', { _: 'Mando móvil' })}</b>
-                  <span>
-                    {translate('home.toolRemoteDesc', {
-                      _: 'Controla este reproductor desde el móvil',
-                    })}
-                  </span>
-                </div>
-                <ChevronRightIcon />
-              </a>
-
-              <a className="mm-tool-item" href="#/help">
-                <div className="mm-tool-icon green">
-                  <HelpOutlineIcon />
-                </div>
-                <div className="mm-tool-copy">
-                  <b>{translate('home.toolHelp', { _: 'Ayuda' })}</b>
-                  <span>
-                    {translate('home.toolHelpDesc', {
-                      _: 'Auto-DJ, mando y descargas',
-                    })}
-                  </span>
-                </div>
-                <ChevronRightIcon />
-              </a>
-            </div>
-          </section>
+            </section>
+          )}
         </div>
       </div>
     </div>

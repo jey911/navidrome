@@ -1,4 +1,5 @@
 import React from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import {
   render,
   screen,
@@ -86,7 +87,10 @@ const queueItem = {
 }
 
 let dispatched = []
-const renderView = (player = { queue: [], current: {}, mode: 'order' }) => {
+const renderView = (
+  player = { queue: [], current: {}, mode: 'order' },
+  route = '/',
+) => {
   dispatched = []
   const store = createStore(
     (
@@ -102,7 +106,9 @@ const renderView = (player = { queue: [], current: {}, mode: 'order' }) => {
   )
   return render(
     <Provider store={store}>
-      <HomeView />
+      <MemoryRouter initialEntries={[route]}>
+        <HomeView />
+      </MemoryRouter>
     </Provider>,
   )
 }
@@ -136,6 +142,7 @@ describe('<HomeView />', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
+    setViewport({ phone: false })
   })
 
   it('muestra estado vacío sin reproducción', async () => {
@@ -330,5 +337,60 @@ describe('<HomeView />', () => {
     expect(screen.queryByText('admin')).not.toBeInTheDocument()
     // El buscador que sí se queda es el de la biblioteca.
     expect(screen.getByTestId('home-library-search')).toBeInTheDocument()
+  })
+  it('loads the next mobile page without duplicates and rejects a late page after search', async () => {
+    setViewport({ phone: true })
+    let resolvePage
+    mockGetList.mockImplementation((resource, options) =>
+      options.pagination.page === 1
+        ? Promise.resolve({ data: [song], total: 90 })
+        : new Promise((resolve) => {
+            resolvePage = resolve
+          }),
+    )
+    renderView()
+    fireEvent.click(await screen.findByText('Cargar más canciones'))
+    expect(mockGetList).toHaveBeenLastCalledWith(
+      'song',
+      expect.objectContaining({ pagination: { page: 2, perPage: 30 } }),
+    )
+    resolvePage({
+      data: [song, { ...song, id: 's2', title: 'Segunda página' }],
+    })
+    await screen.findByText('Segunda página')
+    expect(screen.getAllByTestId('home-song-row')).toHaveLength(2)
+    fireEvent.click(screen.getByText('Cargar más canciones'))
+    fireEvent.change(screen.getByTestId('home-library-search'), {
+      target: { value: 'found' },
+    })
+    await screen.findByText('Resultado de búsqueda')
+    resolvePage({ data: [{ ...song, id: 'late', title: 'Página obsoleta' }] })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByText('Página obsoleta')).toBeNull()
+  })
+
+  it('shows only manually pending tracks on the mobile queue tab', async () => {
+    setViewport({ phone: true })
+    renderView(
+      {
+        queue: [
+          queueItem,
+          {
+            ...queueItem,
+            uuid: 'u2',
+            trackId: 's2',
+            name: 'Petición manual',
+            manualQueued: true,
+          },
+        ],
+        current: { uuid: 'u1', trackId: 's1', song },
+        mode: 'order',
+      },
+      '/?view=queue',
+    )
+    expect(await screen.findByText('Petición manual')).toBeInTheDocument()
+    expect(screen.queryByTestId('home-songs-table')).toBeNull()
+    expect(screen.getAllByTestId('home-queue-item')).toHaveLength(1)
+    expect(screen.getByTestId('mobile-compact-playback')).toBeInTheDocument()
   })
 })

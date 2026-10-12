@@ -114,7 +114,7 @@ var _ = Describe("Remote Endpoints", func() {
 		sessionID, code := announce("Laptop")
 		body, _ := json.Marshal(map[string]any{
 			"sessionId": sessionID, "code": code,
-			"state": map[string]any{"title": "T1", "artist": "A", "playing": true, "notice": "Borrada: T1", "positionMs": 61000, "durationMs": 240000},
+			"state": map[string]any{"title": "T1", "artist": "A", "playing": true, "notice": "Borrada: T1", "positionMs": 61000, "durationMs": 240000, "volume": 0, "commandId": "request-1", "queue": []map[string]string{{"id": "song-2", "title": "Pending", "artist": "Artist"}}},
 		})
 		req := withUser(httptest.NewRequest("POST", "/remote/state", bytes.NewReader(body)))
 		w := httptest.NewRecorder()
@@ -129,5 +129,8 @@ var _ = Describe("Remote Endpoints", func() {
 		Expect(w2.Body.String()).To(ContainSubstring("T1"))
 		Expect(w2.Body.String()).To(ContainSubstring("Borrada"))
 		Expect(w2.Body.String()).To(ContainSubstring("durationMs"))
+		Expect(w2.Body.String()).To(ContainSubstring(`"volume":0`))
+		Expect(w2.Body.String()).To(ContainSubstring(`"commandId":"request-1"`))
+		Expect(w2.Body.String()).To(ContainSubstring(`"title":"Pending"`))
 	})
 })

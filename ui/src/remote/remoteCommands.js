@@ -139,6 +139,13 @@ export const runRemoteCommand = (
   const el = audioInstance
   if (!el) return false
   const payload = cmd.payload || {}
+  const acknowledge = (error) =>
+    notify?.({
+      commandId: payload.requestId || cmd.id,
+      commandError: error
+        ? error.detail || error.message || 'No se pudo aplicar la orden.'
+        : '',
+    })
   const queueSingleTrack = (action) => {
     const id = resolvePlayTrackId(payload)
     if (id && dataProvider && dispatch) {
@@ -148,8 +155,9 @@ export const runRemoteCommand = (
           .then(({ data }) => {
             dispatch(manualQueue())
             dispatch(action({ [data.id || id]: data }))
+            acknowledge()
           })
-          .catch(() => {}),
+          .catch(acknowledge),
       )
       return true
     }
@@ -194,8 +202,9 @@ export const runRemoteCommand = (
           .then(({ data }) => {
             dispatch(manualQueue())
             dispatch(setTrack(data))
+            acknowledge()
           })
-          .catch(() => {}),
+          .catch(acknowledge),
       )
       break
     }
@@ -226,15 +235,17 @@ export const runRemoteCommand = (
             }
             dispatch(removeTrack(id))
             notify?.({ notice: 'Canción eliminada del disco del servidor.' })
+            acknowledge()
           })
-          .catch((error) =>
+          .catch((error) => {
+            acknowledge(error)
             notify?.({
               notice:
                 error.detail ||
                 error.message ||
                 'No se pudo borrar la canción.',
-            }),
-          ),
+            })
+          }),
       )
       break
     }
@@ -242,5 +253,11 @@ export const runRemoteCommand = (
     default:
       return false
   }
+  if (
+    !['playTrack', 'playNextTrack', 'queueTrack', 'deleteTrack'].includes(
+      cmd.action,
+    )
+  )
+    acknowledge()
   return true
 }

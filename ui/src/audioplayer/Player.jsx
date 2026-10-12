@@ -92,6 +92,7 @@ const Player = () => {
   const remoteDedupe = useMemo(() => createCommandDedupe(), [])
   const enqueueRemoteTask = useMemo(() => createRemoteTaskQueue(), [])
   const remotePublishQueue = useRef(Promise.resolve())
+  const remoteAck = useRef({})
   const dataProviderRef = useRef(dataProvider)
   dataProviderRef.current = dataProvider
   // Auto-DJ casa (default ON, persiste en settings): al acabarse la cola,
@@ -204,7 +205,20 @@ const Player = () => {
           (st.mode === 'orderLoop' && !st.manualOnly ? st.queue[0]?.song : null)
     const randomNext =
       st.mode === 'shufflePlay' && !st.manualOnly && !pendingManual
+    if (overrides.commandId)
+      remoteAck.current = {
+        commandId: overrides.commandId,
+        commandError: overrides.commandError || '',
+      }
     const snapshot = {
+      ...remoteAck.current,
+      queue: st.queue
+        .filter((item) => item.manualQueued && item.uuid !== st.current?.uuid)
+        .map((item) => ({
+          id: item.trackId,
+          title: item.song?.title || item.name,
+          artist: item.song?.artist || item.singer,
+        })),
       trackId: st.current?.trackId || song.id || '',
       nextTitle: randomNext ? 'Selección aleatoria' : nextSong?.title || '',
       nextArtist: randomNext ? '' : nextSong?.artist || '',
@@ -288,6 +302,7 @@ const Player = () => {
     const t = setInterval(() => {
       const r = remoteRef.current
       if (!r.enabled || !r.sessionId || !r.code) return
+      publishRemote({}, true)
       fetchPending(r.sessionId, r.code)
         .then((cmd) => {
           if (cmd) executeRemoteCommand(cmd)
@@ -298,7 +313,7 @@ const Player = () => {
       unsubscribe()
       clearInterval(t)
     }
-  }, [remote.enabled, remote.sessionId, executeRemoteCommand])
+  }, [remote.enabled, remote.sessionId, executeRemoteCommand, publishRemote])
 
   // Pre-fetch transcode decisions for next 2-3 songs when queue or position changes.
   // Además precarga el AUDIO del siguiente tema cuando es stream directo

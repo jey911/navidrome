@@ -1129,3 +1129,106 @@ button.mm-tool-item {
     background: #4b9cff;
   }
 }
+
+.mm-inline-progress {
+  height: 3px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #23334a;
+}
+.mm-inline-progress span {
+  display: block;
+  height: 100%;
+  background: #70b6ff;
+  transition: width 0.4s linear;
+}
+.mm-load-more {
+  text-align: center;
+  padding: 16px;
+}
+.mm-load-more button {
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 12px;
+  border: 1px solid #304764;
+  background: #14253b;
+  color: #d8eaff;
+  cursor: pointer;
+}
+@media (max-width: 768px) {
+  .mm-home.mm-show-library .mm-content-grid > div:last-child,
+  .mm-home.mm-show-queue .mm-content-grid > div:first-child {
+    display: none;
+  }
+  .mm-home .mm-content-grid {
+    display: block;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr.mm-mobile-song {
+    grid-template-columns: 44px minmax(0, 1fr) 132px;
+    padding: 12px 2px;
+    gap: 3px 4px;
+  }
+  .mm-mobile-song button,
+  .mm-mobile-song .MuiIconButton-root {
+    width: 44px;
+    height: 44px;
+  }
+  .mm-home table[data-testid='home-songs-table'] .mm-mobile-title .mm-truncate {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.35;
+  }
+  .mm-mobile-song.is-current {
+    background: rgba(75, 156, 255, 0.07);
+    border-radius: 10px;
+  }
+  .mm-mobile-song button:disabled {
+    opacity: 0.4;
+  }
+  .mm-compact-playback {
+    position: sticky;
+    top: 8px;
+    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px 44px;
+    align-items: center;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid #304764;
+    border-radius: 14px;
+    background: #101f33;
+    z-index: 3;
+  }
+  .mm-compact-title {
+    min-width: 0;
+  }
+  .mm-compact-title strong,
+  .mm-compact-title span {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mm-compact-title strong {
+    font-size: 14px;
+  }
+  .mm-compact-title span {
+    color: #9eb1cb;
+    font-size: 12px;
+    margin-top: 3px;
+  }
+  .mm-compact-playback button {
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: 0;
+    color: #83c0ff;
+    cursor: pointer;
+  }
+  .mm-compact-playback .mm-inline-progress {
+    grid-column: 1 / -1;
+  }
+}

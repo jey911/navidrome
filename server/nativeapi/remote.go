@@ -59,16 +59,25 @@ type remoteCommand struct {
 	At      time.Time       `json:"at"`
 }
 
+type remoteQueueItem struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Artist string `json:"artist"`
+}
+
 type remotePlaybackState struct {
-	TrackID    string  `json:"trackId,omitempty"`
-	Title      string  `json:"title,omitempty"`
-	NextTitle  string  `json:"nextTitle,omitempty"`
-	NextArtist string  `json:"nextArtist,omitempty"`
-	Artist     string  `json:"artist,omitempty"`
-	Playing    bool    `json:"playing"`
-	Volume     float64 `json:"volume,omitempty"`
-	Position   int64   `json:"positionMs,omitempty"`
-	Duration   int64   `json:"durationMs,omitempty"`
+	Queue        []remoteQueueItem `json:"queue"`
+	CommandID    string            `json:"commandId,omitempty"`
+	CommandError string            `json:"commandError,omitempty"`
+	TrackID      string            `json:"trackId,omitempty"`
+	Title        string            `json:"title,omitempty"`
+	NextTitle    string            `json:"nextTitle,omitempty"`
+	NextArtist   string            `json:"nextArtist,omitempty"`
+	Artist       string            `json:"artist,omitempty"`
+	Playing      bool              `json:"playing"`
+	Volume       float64           `json:"volume"`
+	Position     int64             `json:"positionMs,omitempty"`
+	Duration     int64             `json:"durationMs,omitempty"`
 	// Aviso puntual para el mando (p. ej. resultado de un borrado).
 	// El laptop lo pisa en la siguiente publicación sin aviso.
 	Notice string    `json:"notice,omitempty"`
