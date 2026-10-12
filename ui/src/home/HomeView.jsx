@@ -736,11 +736,13 @@ const HomeView = () => {
             <section className="mm-card mm-library">
               <div className="mm-library-head">
                 <div>
-                  <h3>
-                    {translate('home.library', {
-                      _: 'Biblioteca de canciones',
-                    })}
-                  </h3>
+                  {!isPhone && (
+                    <h3>
+                      {translate('home.library', {
+                        _: 'Biblioteca de canciones',
+                      })}
+                    </h3>
+                  )}
                   <p>
                     {songsTotal != null
                       ? translate('home.librarySubtitle', {
@@ -762,7 +764,8 @@ const HomeView = () => {
                       <SearchIcon />
                     )}
                     <input
-                      type="text"
+                      type="search"
+                      aria-label="Buscar canción o artista"
                       placeholder={translate('home.librarySearch', {
                         _: 'Buscar en la biblioteca...',
                       })}

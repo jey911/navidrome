@@ -34,3 +34,57 @@
     display: none;
   }
 }
+.mm-nav-queue-icon {
+  position: relative;
+  display: flex;
+}
+.mm-queue-badge {
+  position: absolute;
+  top: -6px;
+  right: -15px;
+  min-width: 17px;
+  padding: 1px 4px;
+  border-radius: 12px;
+  background: #83c0ff;
+  color: #07101b;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+.mm-mobile-navigation a.mm-queue-added {
+  color: #b5f5da;
+  background: #173c38;
+}
+.mm-queue-added .mm-nav-queue-icon {
+  animation: mm-queue-pop 0.6s ease-out;
+}
+.mm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@keyframes mm-queue-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mm-queue-added .mm-nav-queue-icon {
+    animation: none;
+  }
+}
+@media (max-width: 768px) {
+  .mm-mobile-layout {
+    min-width: 0 !important;
+  }
+}

@@ -431,4 +431,13 @@ describe('<RemoteView />', () => {
     })
     expect(await screen.findByText('Resultado en vivo')).toBeInTheDocument()
   })
+  it('places the editable pairing code before the playback controls', async () => {
+    storeTarget('4321')
+    render(<RemoteView />)
+    const code = await screen.findByLabelText('Código de emparejamiento')
+    const play = screen.getByTitle('Play/Pausa')
+    expect(
+      code.compareDocumentPosition(play) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
 })

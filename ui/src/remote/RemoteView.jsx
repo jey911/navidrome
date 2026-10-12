@@ -491,7 +491,7 @@ const RemoteView = () => {
       </Typography>
 
       {!target && (
-        <Card className={classes.card}>
+        <Card className={`${classes.card} mm-remote-pairing`}>
           <CardContent>
             <Typography variant="subtitle1" gutterBottom>
               {translate('remote.pickSession', {
@@ -506,6 +506,26 @@ const RemoteView = () => {
                 })}
               </Typography>
             )}
+            <div className={classes.row}>
+              <TextField
+                label={translate('remote.code', {
+                  _: '2. Código de 4 dígitos',
+                })}
+                value={code}
+                onChange={(e) =>
+                  setCode(e.target.value.replace(/\D/g, '').slice(0, 4))
+                }
+                variant="outlined"
+                inputProps={{
+                  inputMode: 'numeric',
+                  maxLength: 4,
+                  'aria-label': 'Código de emparejamiento',
+                }}
+              />
+              <IconButton onClick={refreshSessions} title="Actualizar">
+                <RefreshIcon />
+              </IconButton>
+            </div>
             {sessions.map((s) => (
               <Button
                 key={s.sessionId}
@@ -517,21 +537,6 @@ const RemoteView = () => {
                 {s.name || s.sessionId.slice(0, 8)}
               </Button>
             ))}
-            <div className={classes.row}>
-              <TextField
-                label={translate('remote.code', {
-                  _: '2. Código de 4 dígitos',
-                })}
-                value={code}
-                onChange={(e) =>
-                  setCode(e.target.value.replace(/\D/g, '').slice(0, 4))
-                }
-                inputProps={{ inputMode: 'numeric', maxLength: 4 }}
-              />
-              <IconButton onClick={refreshSessions} title="Actualizar">
-                <RefreshIcon />
-              </IconButton>
-            </div>
             {error && (
               <Typography className={classes.error}>{error}</Typography>
             )}
@@ -539,6 +544,31 @@ const RemoteView = () => {
         </Card>
       )}
 
+      {target && (
+        <Card className={classes.card}>
+          <CardContent>
+            <div className="mm-remote-connection">
+              <TextField
+                label={translate('remote.code', { _: 'Código' })}
+                value={code}
+                onChange={(e) =>
+                  setCode(e.target.value.replace(/\D/g, '').slice(0, 4))
+                }
+                variant="outlined"
+                inputProps={{
+                  inputMode: 'numeric',
+                  maxLength: 4,
+                  'aria-label': 'Código de emparejamiento',
+                }}
+              />
+              <span className={classes.grow} />
+              <Button size="small" onClick={drop}>
+                {translate('remote.disconnect', { _: 'Desconectar' })}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {target && (
         <Card className={`${classes.card} ${classes.nowPlaying}`}>
           <CardContent>
@@ -803,26 +833,6 @@ const RemoteView = () => {
             {error && (
               <Typography className={classes.error}>{error}</Typography>
             )}
-          </CardContent>
-        </Card>
-      )}
-      {target && (
-        <Card className={classes.card}>
-          <CardContent>
-            <div className="mm-remote-connection">
-              <TextField
-                label={translate('remote.code', { _: 'Código' })}
-                value={code}
-                onChange={(e) =>
-                  setCode(e.target.value.replace(/\D/g, '').slice(0, 4))
-                }
-                inputProps={{ inputMode: 'numeric', maxLength: 4 }}
-              />
-              <span className={classes.grow} />
-              <Button size="small" onClick={drop}>
-                {translate('remote.disconnect', { _: 'Desconectar' })}
-              </Button>
-            </div>
           </CardContent>
         </Card>
       )}

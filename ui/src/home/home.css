@@ -1232,3 +1232,52 @@ button.mm-tool-item {
     grid-column: 1 / -1;
   }
 }
+
+@media (max-width: 768px) {
+  .mm-home {
+    margin: 0;
+    padding: 12px;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr.mm-mobile-song {
+    grid-template-columns: 44px minmax(0, 1fr) 88px;
+  }
+  .mm-library-search {
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .mm-library-tools {
+    width: 100%;
+    min-width: 0;
+  }
+  .mm-library-search input {
+    font-size: 16px;
+    min-width: 0;
+  }
+  .mm-compact-playback {
+    top: calc(var(--mm-mobile-header-height, 56px) + 8px);
+  }
+  .mm-home tbody tr.mm-mobile-song:hover {
+    background: transparent;
+  }
+  .mm-home tbody tr.mm-mobile-song.is-current:hover {
+    background: rgba(75, 156, 255, 0.07);
+  }
+  .mm-mobile-song button {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mm-mobile-song .mm-row-actions button:hover {
+    background: transparent;
+  }
+  .mm-mobile-song .mm-row-actions button:active {
+    background: rgba(75, 156, 255, 0.15);
+    transform: scale(0.92);
+  }
+  .mm-mobile-song .mm-row-actions button:focus-visible {
+    outline: 2px solid #83c0ff;
+    outline-offset: -2px;
+  }
+}

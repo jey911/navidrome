@@ -161,3 +161,34 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.mm-remote-connection {
+  padding: 4px 0;
+}
+.mm-remote-pairing {
+  margin-top: clamp(12px, 7vh, 64px);
+}
+.mm-remote-pairing .MuiFormControl-root {
+  flex: 1;
+  min-width: 0;
+  margin: 16px 0;
+}
+.mm-remote-pairing input {
+  text-align: center;
+  letter-spacing: 0.25em;
+}
+@media (max-width: 768px) {
+  .mm-remote {
+    overflow-wrap: anywhere;
+  }
+  .mm-remote input,
+  .mm-remote .MuiInputBase-input {
+    font-size: 16px;
+  }
+  .mm-remote .MuiListItem-root {
+    min-width: 0;
+  }
+  .mm-remote .MuiListItemText-root {
+    overflow: hidden;
+  }
+}

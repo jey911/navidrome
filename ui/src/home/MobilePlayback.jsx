@@ -4,7 +4,6 @@ import PauseIcon from '@material-ui/icons/Pause'
 import SkipNextIcon from '@material-ui/icons/SkipNext'
 import AddIcon from '@material-ui/icons/Add'
 import DeleteIcon from '@material-ui/icons/Delete'
-import { SongContextMenu } from '../common'
 import { getAudioInstance } from '../audioplayer/audioBus'
 
 // Only mounted playback controls update; the library never ticks with audio.
@@ -99,7 +98,6 @@ export const MobileSongRow = ({
           >
             <DeleteIcon fontSize="small" />
           </button>
-          <SongContextMenu resource="song" record={song} showLove={false} />
         </div>
       </td>
       {active && (

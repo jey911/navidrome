@@ -184,7 +184,9 @@ describe('<HomeView />', () => {
         await screen.findByTestId('home-library-search'),
       ).toBeInTheDocument()
       expect(await screen.findByTestId('home-song-row')).toBeInTheDocument()
-      expect(screen.getByText('Biblioteca de canciones')).toBeInTheDocument()
+      expect(
+        screen.queryByText('Biblioteca de canciones'),
+      ).not.toBeInTheDocument()
 
       // Lo que se oculta
       expect(screen.queryByTestId('home-now-title')).not.toBeInTheDocument()
@@ -205,7 +207,7 @@ describe('<HomeView />', () => {
       ).not.toBeInTheDocument()
       expect(screen.getByTestId('home-song-queue')).toBeInTheDocument()
       expect(screen.getByTestId('home-song-delete')).toBeInTheDocument()
-      expect(screen.getByTestId('ctx')).toBeInTheDocument()
+      expect(screen.queryByTestId('ctx')).not.toBeInTheDocument()
     })
 
     it('pauses/resumes the current song from its row without replacing the queue', async () => {
