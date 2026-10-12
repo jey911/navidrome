@@ -49,7 +49,11 @@ const navigationHandler = async (params) => {
 }
 
 // self.__WB_MANIFEST is default injection point
-workbox.precaching.precacheAndRoute(self.__WB_MANIFEST)
+// HTML contains runtime configuration and must match the current server's
+// asset hashes. Serve navigations from the network, never the precache.
+workbox.precaching.precacheAndRoute(
+  self.__WB_MANIFEST.filter((entry) => entry.url !== 'index.html'),
+)
 
 // Register this strategy to handle all navigations.
 workbox.routing.registerRoute(
