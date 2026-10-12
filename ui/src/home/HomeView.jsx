@@ -297,7 +297,6 @@ const HomeView = () => {
   const dispatch = useDispatch()
   const history = useHistory()
   const playerState = useSelector((state) => state.player)
-  const permissions = useSelector((state) => state.admin?.permissions)
 
   // En el móvil Inicio se reduce a la biblioteca de canciones y su buscador.
   // Se ocultan "lo que suena", "escuchado recientemente", "playlists para
@@ -447,53 +446,33 @@ const HomeView = () => {
     }
   }
 
-  const username = (() => {
-    try {
-      return localStorage.getItem('username') || 'Mi Servidor'
-    } catch {
-      return 'Mi Servidor'
-    }
-  })()
-
   return (
     <div className="mm-home">
       <Title title="Mi Música" />
 
-      <div className="mm-topbar">
-        {!isPhone && (
-          <>
-            <button
-              className="mm-pill-btn"
-              onClick={() => history.push('/song')}
-              data-testid="home-filters"
-            >
-              <TuneIcon /> {translate('home.filters', { _: 'Filtros' })}
-            </button>
-            <button
-              className="mm-pill-btn"
-              onClick={() => history.push('/song')}
-              data-testid="home-sort"
-            >
-              <SortIcon />{' '}
-              {translate('home.sort', { _: 'Ordenar: Fecha agregada' })}
-            </button>
-            <a className="mm-pill-btn blue" href="/downloader">
-              <CloudUploadIcon />{' '}
-              {translate('home.upload', { _: 'Subir música' })}
-            </a>
-          </>
-        )}
-        <div className="mm-user">
-          <div className="mm-meta">
-            <b>{username}</b>
-            <small>
-              {permissions === 'admin'
-                ? translate('home.admin', { _: 'Administrador' })
-                : translate('home.user', { _: 'Usuario' })}
-            </small>
-          </div>
+      {!isPhone && (
+        <div className="mm-topbar">
+          <button
+            className="mm-pill-btn"
+            onClick={() => history.push('/song')}
+            data-testid="home-filters"
+          >
+            <TuneIcon /> {translate('home.filters', { _: 'Filtros' })}
+          </button>
+          <button
+            className="mm-pill-btn"
+            onClick={() => history.push('/song')}
+            data-testid="home-sort"
+          >
+            <SortIcon />{' '}
+            {translate('home.sort', { _: 'Ordenar: Fecha agregada' })}
+          </button>
+          <a className="mm-pill-btn blue" href="/downloader">
+            <CloudUploadIcon />{' '}
+            {translate('home.upload', { _: 'Subir música' })}
+          </a>
         </div>
-      </div>
+      )}
 
       <div className="mm-content-grid">
         <div>

@@ -253,14 +253,13 @@ describe('<HomeView />', () => {
     )
   })
 
-  it('la barra superior solo lleva el usuario', async () => {
+  it('omite la tarjeta de usuario de Inicio', async () => {
     renderView()
     await screen.findByTestId('home-song-row')
-    // Se quitaron la búsqueda general y el botón de refrescar: quedaban
-    // duplicados del buscador lateral y de "Herramientas rápidas".
+    // La biblioteca conserva su buscador sin la tarjeta de usuario.
     expect(screen.queryByTestId('home-search')).not.toBeInTheDocument()
     expect(screen.queryByTestId('home-scan')).not.toBeInTheDocument()
-    expect(screen.getByText('admin')).toBeInTheDocument()
+    expect(screen.queryByText('admin')).not.toBeInTheDocument()
     // El buscador que sí se queda es el de la biblioteca.
     expect(screen.getByTestId('home-library-search')).toBeInTheDocument()
   })
