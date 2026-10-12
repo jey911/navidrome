@@ -12,7 +12,6 @@ import SearchIcon from '@material-ui/icons/Search'
 import TuneIcon from '@material-ui/icons/Tune'
 import SortIcon from '@material-ui/icons/Sort'
 import CloudUploadIcon from '@material-ui/icons/CloudUpload'
-import RefreshIcon from '@material-ui/icons/Refresh'
 import PlayArrowIcon from '@material-ui/icons/PlayArrow'
 import PauseIcon from '@material-ui/icons/Pause'
 import SkipNextIcon from '@material-ui/icons/SkipNext'
@@ -461,22 +460,6 @@ const HomeView = () => {
       <Title title="Mi Música" />
 
       <div className="mm-topbar">
-        <div className="mm-search">
-          <SearchIcon />
-          <input
-            type="text"
-            placeholder={translate('home.searchPlaceholder', {
-              _: 'Buscar canciones, artistas, álbumes...',
-            })}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submitSearch()
-            }}
-            data-testid="home-search"
-          />
-        </div>
-
         {!isPhone && (
           <>
             <button
@@ -500,25 +483,14 @@ const HomeView = () => {
             </a>
           </>
         )}
-        <div style={{ display: 'flex', gap: 14, justifyContent: 'flex-end' }}>
-          <button
-            className="mm-icon-btn"
-            title={translate('home.scan', { _: 'Sincronizar' })}
-            onClick={quickScan}
-            disabled={scanning}
-            data-testid="home-scan"
-          >
-            <RefreshIcon />
-          </button>
-          <div className="mm-user">
-            <div className="mm-meta">
-              <b>{username}</b>
-              <small>
-                {permissions === 'admin'
-                  ? translate('home.admin', { _: 'Administrador' })
-                  : translate('home.user', { _: 'Usuario' })}
-              </small>
-            </div>
+        <div className="mm-user">
+          <div className="mm-meta">
+            <b>{username}</b>
+            <small>
+              {permissions === 'admin'
+                ? translate('home.admin', { _: 'Administrador' })
+                : translate('home.user', { _: 'Usuario' })}
+            </small>
           </div>
         </div>
       </div>

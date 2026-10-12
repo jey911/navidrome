@@ -237,19 +237,31 @@ describe('<HomeView />', () => {
 
   it('busca y navega a canciones', async () => {
     renderView()
-    const input = await screen.findByTestId('home-search')
+    const input = await screen.findByTestId('home-library-search')
     fireEvent.change(input, { target: { value: 'tito' } })
     fireEvent.keyDown(input, { key: 'Enter' })
     expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('/song?'))
     expect(mockPush.mock.calls[0][0]).toContain(encodeURIComponent('tito'))
   })
 
-  it('dispara sincronización rápida', async () => {
+  it('dispara sincronización rápida desde Herramientas', async () => {
     subsonic.startScan.mockResolvedValue({})
     renderView()
-    fireEvent.click(await screen.findByTestId('home-scan'))
+    fireEvent.click(await screen.findByTestId('home-tool-scan'))
     await waitFor(() =>
       expect(subsonic.startScan).toHaveBeenCalledWith({ fullScan: false }),
     )
+  })
+
+  it('la barra superior solo lleva el usuario', async () => {
+    renderView()
+    await screen.findByTestId('home-song-row')
+    // Se quitaron la búsqueda general y el botón de refrescar: quedaban
+    // duplicados del buscador lateral y de "Herramientas rápidas".
+    expect(screen.queryByTestId('home-search')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('home-scan')).not.toBeInTheDocument()
+    expect(screen.getByText('admin')).toBeInTheDocument()
+    // El buscador que sí se queda es el de la biblioteca.
+    expect(screen.getByTestId('home-library-search')).toBeInTheDocument()
   })
 })

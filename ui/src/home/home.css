@@ -28,38 +28,24 @@
   min-height: 100%;
 }
 
+/* Flex y no grid: la barra superior ha perdido la búsqueda general y el botón
+   de refrescar, así que el número de hijos cambia según el ancho (4 en
+   escritorio, 0 u 1 en móvil). Con un grid de columnas fijas, el primer
+   elemento se comía la columna `1.2fr`; `margin-left: auto` deja los botones
+   a la izquierda y el usuario pegado al borde,|sea cual sea el número. */
 .mm-topbar {
-  display: grid;
-  grid-template-columns: 1.2fr auto auto auto auto;
+  display: flex;
+  flex-wrap: wrap;
   gap: 14px;
   align-items: center;
   margin-bottom: 18px;
 }
 
-.mm-search {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #a2b1c6;
-  border-radius: 16px;
-  padding: 14px 18px;
-  min-width: 0;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-}
-
-.mm-search input {
-  background: transparent;
-  border: none;
-  outline: none;
-  color: #dbe6f7;
-  width: 100%;
-  font-size: 15px;
+.mm-topbar > .mm-user {
+  margin-left: auto;
 }
 
 .mm-pill-btn,
-.mm-icon-btn,
 .mm-user {
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
@@ -80,12 +66,6 @@
 .mm-pill-btn.blue {
   background: linear-gradient(180deg, #3790ff, #2f80ff);
   border-color: rgba(104, 170, 255, 0.5);
-}
-
-.mm-icon-btn {
-  width: 54px;
-  justify-content: center;
-  padding: 0;
 }
 
 .mm-user {
@@ -818,15 +798,9 @@ button.mm-tool-item {
   .mm-row-grid {
     grid-template-columns: 1fr;
   }
-  .mm-topbar {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 @media (max-width: 1100px) {
-  .mm-topbar {
-    grid-template-columns: 1fr;
-  }
   .mm-now-body {
     grid-template-columns: 1fr;
   }
@@ -858,6 +832,38 @@ button.mm-tool-item {
     padding: 14px 14px 20px;
   }
 
+  /* La biblioteca sube hasta tocar la barra superior. En móvil no queda
+     ningún bloque entre ambas —"lo que suena", "escuchado recientemente" y
+     "playlists para ti" están ocultos—, así que el espacio que las separaba
+     era puro relleno: media pantalla de scroll antes de la primera canción. */
+  .mm-topbar {
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+
+  .mm-library {
+    margin-top: 0;
+    padding: 14px;
+  }
+
+  .mm-library-head {
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .mm-library-head h3 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+
+  .mm-library-head p {
+    font-size: 13px;
+  }
+
+  .mm-library-search {
+    padding: 12px 14px;
+  }
+
   /* Título del panel "sonando": 40px en escritorio es ilegible en un móvil. */
   .mm-song-title {
     font-size: 26px;
@@ -872,10 +878,10 @@ button.mm-tool-item {
   }
 
   .mm-now-body,
+  /* La barra superior es flex, así que solo hay que ajustar el ritmo. */
   .mm-player-center,
   .mm-content-grid,
-  .mm-row-grid,
-  .mm-topbar {
+  .mm-row-grid {
     gap: 12px;
   }
 
