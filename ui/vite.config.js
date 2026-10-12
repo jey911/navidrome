@@ -11,6 +11,8 @@ export default defineConfig({
     react(),
     VitePWA({
       manifest: manifest(),
+      // Registration is handled explicitly in index.jsx with a versioned URL.
+      injectRegister: false,
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
