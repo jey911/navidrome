@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   createCommandDedupe,
+  createRemoteTaskQueue,
   deleteTrackViaEmepetre,
   resolveContextIds,
   resolvePlayTrackId,
@@ -461,4 +462,33 @@ describe('runRemoteCommand deleteTrack', () => {
     ).toBe(false)
     expect(dataProvider.getOne).not.toHaveBeenCalled()
   })
+})
+
+it('keeps rapid queue requests in arrival order despite a slow first lookup', async () => {
+  let resolveFirst
+  const first = new Promise((resolve) => {
+    resolveFirst = resolve
+  })
+  const provider = {
+    getOne: vi
+      .fn()
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce({ data: { id: 'second' } }),
+  }
+  const dispatch = vi.fn()
+  const deps = {
+    audioInstance: {},
+    dataProvider: provider,
+    dispatch,
+    enqueue: createRemoteTaskQueue(),
+  }
+  runRemoteCommand({ action: 'queueTrack', payload: { id: 'first' } }, deps)
+  runRemoteCommand({ action: 'queueTrack', payload: { id: 'second' } }, deps)
+  await vi.waitFor(() => expect(provider.getOne).toHaveBeenCalledTimes(1))
+  expect(dispatch).not.toHaveBeenCalled()
+  resolveFirst({ data: { id: 'first' } })
+  await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2))
+  expect(
+    dispatch.mock.calls.map(([action]) => Object.keys(action.data)[0]),
+  ).toEqual(['first', 'second'])
 })

@@ -30,11 +30,12 @@ export const filterSongs = (data, ids) => {
       }, {})
 }
 
-export const addTracks = (data, ids) => {
+export const addTracks = (data, ids, { automatic = false } = {}) => {
   const songs = filterSongs(data, ids)
   return {
     type: PLAYER_ADD_TRACKS,
     data: songs,
+    automatic,
   }
 }
 

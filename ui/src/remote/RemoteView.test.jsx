@@ -305,4 +305,20 @@ describe('<RemoteView />', () => {
     })
     expect(listSessions).toHaveBeenCalledTimes(1)
   })
+  it('shows the next song and keeps search outside the playback card', async () => {
+    fetchState.mockResolvedValue({
+      title: 'Actual',
+      nextTitle: 'Siguiente tema',
+      nextArtist: 'Artista siguiente',
+    })
+    storeTarget()
+    render(<RemoteView />)
+    const next = await screen.findByTestId('remote-next-song')
+    expect(next).toHaveTextContent('Siguiente tema')
+    expect(next).toHaveTextContent('Artista siguiente')
+    const search = screen.getByTestId('remote-search-input')
+    expect(search.closest('.MuiCard-root')).not.toBe(
+      next.closest('.MuiCard-root'),
+    )
+  })
 })

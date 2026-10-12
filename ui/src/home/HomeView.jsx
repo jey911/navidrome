@@ -320,6 +320,36 @@ const HomeView = () => {
   const [latestSongs, setLatestSongs] = useState(null)
   const [songsTotal, setSongsTotal] = useState(null)
   const [scanning, setScanning] = useState(false)
+  const [rowPlayback, setRowPlayback] = useState({
+    playing: false,
+    progress: 0,
+  })
+  useEffect(() => {
+    if (!isPhone) return undefined
+    const update = () => {
+      const audio = getAudioInstance()
+      setRowPlayback({
+        playing: !!audio && !audio.paused && !audio.ended,
+        progress: audio?.duration
+          ? Math.min(1, audio.currentTime / audio.duration)
+          : 0,
+      })
+    }
+    update()
+    const timer = setInterval(update, 500)
+    return () => clearInterval(timer)
+  }, [isPhone, current?.trackId])
+  const playFromRow = (song) => {
+    const audio = getAudioInstance()
+    if (
+      (current?.trackId || current?.song?.id) === song.id &&
+      audio &&
+      !audio.ended
+    ) {
+      if (audio.paused) audio.play?.()
+      else audio.pause?.()
+    } else dispatch(setTrack(song))
+  }
 
   useEffect(() => {
     let alive = true
@@ -672,6 +702,86 @@ const HomeView = () => {
                 </thead>
                 <tbody>
                   {latestSongs.map((song) => {
+                    const active =
+                      (current?.trackId || current?.song?.id) === song.id
+                    if (isPhone)
+                      return (
+                        <tr
+                          key={song.id}
+                          data-testid="home-song-row"
+                          className={`mm-mobile-song ${active ? 'is-current' : ''}`}
+                        >
+                          <td className="mm-mobile-play">
+                            <button
+                              aria-label={
+                                active && rowPlayback.playing
+                                  ? 'Pausar'
+                                  : 'Reproducir'
+                              }
+                              disabled={song.missing}
+                              data-testid="row-play"
+                              onClick={() => playFromRow(song)}
+                            >
+                              {active && rowPlayback.playing ? (
+                                <PauseIcon />
+                              ) : (
+                                <PlayArrowIcon />
+                              )}
+                            </button>
+                          </td>
+                          <td className="mm-mobile-title">
+                            <div className="mm-truncate">{song.title}</div>
+                          </td>
+                          <td className="mm-mobile-artist">
+                            <div className="mm-truncate">{song.artist}</div>
+                          </td>
+                          <td className="mm-mobile-actions">
+                            <div className="mm-row-actions">
+                              <button
+                                title="Añadir a la cola"
+                                aria-label="Añadir a la cola"
+                                onClick={() => queueSong(song)}
+                                data-testid="home-song-queue"
+                              >
+                                <AddIcon fontSize="small" />
+                              </button>
+                              <button
+                                title="Borrar de la biblioteca"
+                                aria-label="Borrar de la biblioteca"
+                                className="mm-danger"
+                                onClick={() => deleteSong(song)}
+                                data-testid="home-song-delete"
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </button>
+                              <SongContextMenu
+                                resource="song"
+                                record={song}
+                                showLove={false}
+                              />
+                            </div>
+                          </td>
+                          {active && (
+                            <td className="mm-mobile-progress">
+                              <div
+                                role="progressbar"
+                                aria-label="Progreso de reproducción"
+                                aria-valuenow={Math.round(
+                                  rowPlayback.progress * 100,
+                                )}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                              >
+                                <span
+                                  style={{
+                                    width: `${rowPlayback.progress * 100}%`,
+                                  }}
+                                />
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      )
                     const quality = qualityOf(song)
                     return (
                       <tr key={song.id} data-testid="home-song-row">

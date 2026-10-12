@@ -1,5 +1,11 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Provider } from 'react-redux'
 import { createStore } from 'redux'
@@ -8,6 +14,7 @@ import { setTrack, addTracks, playTracks, removeTrack } from '../actions'
 import { deleteTrackViaEmepetre } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
 import { setViewport } from '../setupTests'
+import { registerAudioInstance } from '../audioplayer/audioBus'
 
 vi.mock('react-admin', async (importOriginal) => {
   const actual = await importOriginal()
@@ -174,6 +181,35 @@ describe('<HomeView />', () => {
         screen.queryByText('Escuchado recientemente'),
       ).not.toBeInTheDocument()
       expect(screen.queryByText('Playlists para ti')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('love')).not.toBeInTheDocument()
+      expect(screen.queryByText(song.album)).not.toBeInTheDocument()
+      expect(screen.queryByText(song.genre)).not.toBeInTheDocument()
+      expect(
+        within(screen.getByTestId('home-song-row')).queryByText('4:16'),
+      ).not.toBeInTheDocument()
+      expect(screen.getByTestId('home-song-queue')).toBeInTheDocument()
+      expect(screen.getByTestId('home-song-delete')).toBeInTheDocument()
+      expect(screen.getByTestId('ctx')).toBeInTheDocument()
+    })
+
+    it('pauses/resumes the current song from its row without replacing the queue', async () => {
+      const audio = {
+        paused: false,
+        currentTime: 10,
+        duration: 100,
+        pause: vi.fn(),
+        play: vi.fn(),
+      }
+      registerAudioInstance(audio)
+      renderView({
+        queue: [queueItem],
+        current: { trackId: 's1', song },
+        mode: 'order',
+      })
+      fireEvent.click(await screen.findByLabelText('Pausar'))
+      expect(audio.pause).toHaveBeenCalledOnce()
+      expect(dispatched).not.toContainEqual(setTrack(song))
+      registerAudioInstance(null)
     })
 
     it('no pide los álbumes ni las playlists que no va a pintar', async () => {

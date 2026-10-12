@@ -6,6 +6,16 @@ import {
   setTrack,
 } from '../actions'
 
+// Serialize async song lookups so quick remote requests retain their order.
+export const createRemoteTaskQueue = () => {
+  let pending = Promise.resolve()
+  return (task) => {
+    const result = pending.then(task)
+    pending = result.catch(() => {})
+    return result
+  }
+}
+
 // El servidor asigna un id único a cada orden, pero puede llegar por dos
 // vías (SSE en vivo y GET /pending como red de seguridad). Este registro
 // acotado evita ejecutar la misma orden dos veces. Las órdenes sin id
@@ -119,14 +129,21 @@ export const deleteTrackViaEmepetre = async (relPath) => {
 // Devuelve true si la acción era conocida y se aplicó (aunque falle async).
 // NUNCA reproduce en el móvil: esta función corre en el equipo emparejado.
 // playTrack reemplaza la cola (reproducir ahora); playNextTrack inserta
-// justo después del tema actual; queueTrack añade al final. La cola manual
+// justo después del tema actual; queueTrack mantiene las peticiones manuales en FIFO. La cola manual
 // siempre suena antes que el relleno automático (artista=>género).
 // deleteTrack borra el ARCHIVO de la biblioteca vía Emepetre (irreversible;
 // el mando pide confirmación): si era el tema actual avanza al siguiente,
 // si era un tema futuro lo quita de la cola, y avisa al mando con `notify`.
 export const runRemoteCommand = (
   cmd,
-  { audioInstance, dataProvider, dispatch, getPlayerState, notify } = {},
+  {
+    audioInstance,
+    dataProvider,
+    dispatch,
+    getPlayerState,
+    notify,
+    enqueue = (task) => task(),
+  } = {},
 ) => {
   if (!cmd || !cmd.action) return false
   const el = audioInstance
@@ -135,10 +152,12 @@ export const runRemoteCommand = (
   const queueSingleTrack = (action) => {
     const id = resolvePlayTrackId(payload)
     if (id && dataProvider && dispatch) {
-      dataProvider
-        .getOne('song', { id })
-        .then(({ data }) => dispatch(action({ [data.id || id]: data })))
-        .catch(() => {})
+      enqueue(() =>
+        dataProvider
+          .getOne('song', { id })
+          .then(({ data }) => dispatch(action({ [data.id || id]: data })))
+          .catch(() => {}),
+      )
       return true
     }
     return false
@@ -183,27 +202,31 @@ export const runRemoteCommand = (
         const ordered = contextIds.includes(id)
           ? contextIds
           : [id, ...contextIds]
-        dataProvider
-          .getMany('song', { ids: ordered })
-          .then(({ data: records }) => {
-            const byId = {}
-            for (const r of records || []) {
-              if (r?.id) byId[r.id] = r
-            }
-            const present = ordered.filter((cid) => byId[cid])
-            if (present.length === 0) return
-            const map = {}
-            present.forEach((cid) => {
-              map[cid] = byId[cid]
+        enqueue(() =>
+          dataProvider
+            .getMany('song', { ids: ordered })
+            .then(({ data: records }) => {
+              const byId = {}
+              for (const r of records || []) {
+                if (r?.id) byId[r.id] = r
+              }
+              const present = ordered.filter((cid) => byId[cid])
+              if (present.length === 0) return
+              const map = {}
+              present.forEach((cid) => {
+                map[cid] = byId[cid]
+              })
+              dispatch(playTracks(map, present, byId[id] ? id : present[0]))
             })
-            dispatch(playTracks(map, present, byId[id] ? id : present[0]))
-          })
-          .catch(() => {})
+            .catch(() => {}),
+        )
       } else {
-        dataProvider
-          .getOne('song', { id })
-          .then(({ data }) => dispatch(setTrack(data)))
-          .catch(() => {})
+        enqueue(() =>
+          dataProvider
+            .getOne('song', { id })
+            .then(({ data }) => dispatch(setTrack(data)))
+            .catch(() => {}),
+        )
       }
       break
     }

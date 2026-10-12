@@ -113,6 +113,7 @@ const reducePlayTracks = (state, { data, id }) => {
     ...state,
     queue,
     playIndex,
+    autoPlay: true,
     clear: true,
   }
 }
@@ -122,20 +123,41 @@ const reduceSetTrack = (state, { data }) => {
     ...state,
     queue: [mapToAudioLists(data)],
     playIndex: 0,
+    autoPlay: true,
     clear: true,
   }
 }
 
-const reduceAddTracks = (state, { data }) => {
-  const queue = state.queue
-  Object.keys(data).forEach((id) => {
-    queue.push(mapToAudioLists(data[id]))
-  })
-  return { ...state, queue, clear: false }
+// Manual requests are FIFO immediately after the current song, ahead of
+// album/search context and Auto-DJ. Never mutate the previous Redux queue.
+const reduceAddTracks = (state, { data, automatic = false }) => {
+  const tracks = Object.values(data).map((song) => ({
+    ...mapToAudioLists(song),
+    manualQueued: !automatic,
+  }))
+  if (!tracks.length) return state
+  if (automatic) return { ...state, queue: [...state.queue, ...tracks] }
+  const index = state.queue.findIndex(
+    (item) => item.uuid === state.current?.uuid,
+  )
+  let insertAt = index >= 0 ? index + 1 : (state.playIndex ?? -1) + 1
+  while (state.queue[insertAt]?.manualQueued) insertAt++
+  return {
+    ...state,
+    queue: [
+      ...state.queue.slice(0, insertAt),
+      ...tracks,
+      ...state.queue.slice(insertAt),
+    ],
+    clear: true,
+  }
 }
 
 const reducePlayNext = (state, { data }) => {
-  const newTracks = Object.keys(data).map((id) => mapToAudioLists(data[id]))
+  const newTracks = Object.keys(data).map((id) => ({
+    ...mapToAudioLists(data[id]),
+    manualQueued: true,
+  }))
   const newQueue = []
   const current = state.current || {}
   let foundPos = false
@@ -209,6 +231,11 @@ const reduceCurrent = (state, { data }) => {
   const pending = state.playIndex != null && savedPlayIndex !== state.playIndex
   return {
     ...state,
+    queue: state.queue.map((item) =>
+      item.uuid === current.uuid && item.manualQueued
+        ? { ...item, manualQueued: false }
+        : item,
+    ),
     current,
     playIndex: pending ? state.playIndex : undefined,
     clear: pending ? state.clear : false,

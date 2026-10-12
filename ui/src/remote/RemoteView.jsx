@@ -27,7 +27,7 @@ import {
 } from '@material-ui/icons'
 import { fetchState, listSessions, sendCommand } from './remoteApi'
 import { searchSongs, SEARCH_LIMIT } from './searchSongs'
-import '../home/home.css'
+import './remote.css'
 
 const TARGET_KEY = 'remoteTarget'
 
@@ -38,18 +38,22 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(1.5),
     maxWidth: 640,
     margin: '0 auto',
-    paddingBottom: theme.spacing(4),
+    paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+    width: '100%',
+    boxSizing: 'border-box',
+    minWidth: 0,
     [theme.breakpoints.up('sm')]: {
       padding: theme.spacing(2),
     },
   },
-  card: { marginBottom: theme.spacing(2) },
-  // La tarjeta de reproducción queda fija arriba al hacer scroll para
-  // tener siempre a mano transporte + avance en el móvil.
+  card: {
+    marginBottom: theme.spacing(2),
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  // Keep controls in normal flow: a tall sticky card obscures mobile search.
   nowPlaying: {
-    position: 'sticky',
-    top: theme.spacing(1),
-    zIndex: 10,
+    position: 'relative',
   },
   row: {
     display: 'flex',
@@ -68,7 +72,7 @@ const useStyles = makeStyles((theme) => ({
     width: 60,
     height: 60,
   },
-  grow: { flexGrow: 1 },
+  grow: { flexGrow: 1, minWidth: 0 },
   session: { width: '100%', marginBottom: theme.spacing(1) },
   error: { color: theme.palette.error.main },
   hint: { marginTop: theme.spacing(1) },
@@ -169,6 +173,9 @@ const RemoteView = () => {
   // Posición local de la barra de avance: mientras se arrastra manda lo
   // local; al soltar se envía la orden seek. Se resetea al cambiar de tema.
   const [seekPos, setSeekPos] = useState(null)
+  const lastStateAt = useRef(0)
+  const commandBusy = useRef(false)
+  const searchRequest = useRef(0)
 
   const formatMs = (ms) => {
     if (!ms && ms !== 0) return '--:--'
@@ -177,6 +184,9 @@ const RemoteView = () => {
   }
 
   const handleState = useCallback((s) => {
+    const timestamp = Date.parse(s?.at) || 0
+    if (timestamp && timestamp < lastStateAt.current) return
+    lastStateAt.current = timestamp || lastStateAt.current
     setState(s)
     if (s?.notice && s.notice !== seenNoticeRef.current) {
       seenNoticeRef.current = s.notice
@@ -195,12 +205,14 @@ const RemoteView = () => {
 
   const drop = useCallback(() => {
     setTarget(null)
+    lastStateAt.current = 0
     setState(null)
     persistTarget(null)
   }, [])
 
   const pick = useCallback(
     (sessionId) => {
+      lastStateAt.current = 0
       const next = { sessionId, code }
       setTarget(next)
       persistTarget(next)
@@ -236,7 +248,10 @@ const RemoteView = () => {
   useEffect(() => {
     if (!sessionId) return undefined
     let alive = true
+    let polling = false
     const poll = () => {
+      if (polling) return
+      polling = true
       fetchState(sessionId)
         .then((s) => alive && handleState(s))
         .catch((e) => {
@@ -259,6 +274,9 @@ const RemoteView = () => {
             })
             .catch(() => {})
         })
+        .finally(() => {
+          polling = false
+        })
     }
     poll()
     const t = setInterval(poll, 3000)
@@ -269,7 +287,8 @@ const RemoteView = () => {
   }, [sessionId, drop, translate, handleState])
 
   const cmd = async (action, payload) => {
-    if (!target) return
+    if (!target || commandBusy.current) return
+    commandBusy.current = true
     setBusy(true)
     setError('')
     try {
@@ -283,6 +302,7 @@ const RemoteView = () => {
           : translate('remote.cmdError', { _: 'No se pudo enviar la orden' }),
       )
     } finally {
+      commandBusy.current = false
       setBusy(false)
     }
   }
@@ -295,14 +315,17 @@ const RemoteView = () => {
       setSearchError('')
       return
     }
+    const request = ++searchRequest.current
     setSearching(true)
     setSearchError('')
     setResults([])
     try {
       const songs = await searchSongs(q, SEARCH_LIMIT)
+      if (request !== searchRequest.current) return
       setResults(songs)
       setHasSearched(true)
     } catch {
+      if (request !== searchRequest.current) return
       setResults([])
       setHasSearched(true)
       setSearchError(
@@ -311,7 +334,7 @@ const RemoteView = () => {
         }),
       )
     } finally {
-      setSearching(false)
+      if (request === searchRequest.current) setSearching(false)
     }
   }
 
@@ -323,7 +346,7 @@ const RemoteView = () => {
       contextIds: results.map((r) => r.id),
     })
   // Cola manual desde el mando: "siguiente" inserta justo después del tema
-  // actual y "cola" añade al final. Ambas suenan antes que el relleno
+  // actual y "cola" añade tras las peticiones manuales pendientes. Ambas suenan antes que el relleno
   // automático (mismo artista, luego mismo género).
   const queueNextSong = (song) => cmd('playNextTrack', { id: song.id })
   const queueSong = (song) => cmd('queueTrack', { id: song.id })
@@ -371,7 +394,7 @@ const RemoteView = () => {
   }
 
   return (
-    <div className={`${classes.root} mm-home`}>
+    <div className={`${classes.root} mm-remote`}>
       <Typography variant="h5" gutterBottom>
         {translate('menu.remote', { _: 'Control remoto' })}
       </Typography>
@@ -531,7 +554,20 @@ const RemoteView = () => {
               </IconButton>
             </div>
 
-            <div className={classes.row}>
+            {state?.nextTitle && (
+              <div className="mm-remote-next" data-testid="remote-next-song">
+                <small>A continuación</small>
+                <strong>{state.nextTitle}</strong>
+                <span>{state.nextArtist}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+      {target && (
+        <Card className={classes.card}>
+          <CardContent>
+            <div className="mm-remote-search">
               <TextField
                 fullWidth
                 label={translate('remote.search', { _: 'Buscar canción' })}
@@ -570,7 +606,7 @@ const RemoteView = () => {
               <>
                 <Typography variant="caption" color="textSecondary">
                   {translate('remote.queueHint', {
-                    _: 'Toca el nombre o ▶ para reproducir (siguiente/anterior quedan en la lista) · ⏭ suena la siguiente · ＋ va a la cola.',
+                    _: '▶ Reproducir · ⏭ Siguiente · ＋ Añadir a la cola (antes del Auto-DJ).',
                   })}
                 </Typography>
                 <List dense>
@@ -587,11 +623,14 @@ const RemoteView = () => {
                         onClick={() => playSong(song)}
                         data-testid="remote-result-title"
                       />
-                      <div className={classes.resultActions}>
+                      <div
+                        className={`${classes.resultActions} mm-remote-result-actions`}
+                      >
                         <IconButton
                           size="small"
                           title="Reproducir ahora"
                           onClick={() => playSong(song)}
+                          disabled={busy}
                           data-testid="remote-play-now"
                         >
                           <PlayIcon fontSize="small" />
@@ -600,6 +639,7 @@ const RemoteView = () => {
                           size="small"
                           title="Sonar la siguiente"
                           onClick={() => queueNextSong(song)}
+                          disabled={busy}
                           data-testid="remote-play-next"
                         >
                           <NextIcon fontSize="small" />
@@ -608,6 +648,7 @@ const RemoteView = () => {
                           size="small"
                           title="Añadir a la cola"
                           onClick={() => queueSong(song)}
+                          disabled={busy}
                           data-testid="remote-queue"
                         >
                           <AddIcon fontSize="small" />
@@ -616,6 +657,7 @@ const RemoteView = () => {
                           size="small"
                           title="Borrar de la biblioteca (elimina el archivo)"
                           onClick={() => deleteSong(song)}
+                          disabled={busy}
                           data-testid="remote-delete"
                         >
                           <DeleteIcon fontSize="small" />
@@ -640,8 +682,13 @@ const RemoteView = () => {
             {error && (
               <Typography className={classes.error}>{error}</Typography>
             )}
-
-            <div className={classes.row}>
+          </CardContent>
+        </Card>
+      )}
+      {target && (
+        <Card className={classes.card}>
+          <CardContent>
+            <div className="mm-remote-connection">
               <TextField
                 label={translate('remote.code', { _: 'Código' })}
                 value={code}

@@ -240,11 +240,13 @@ export const SongContextMenu = ({
 
   return (
     <span className={clsx(classes.noWrap, className)}>
-      <LoveButton
-        record={record}
-        resource={resource}
-        visible={config.enableFavourites && showLove && present}
-      />
+      {showLove && (
+        <LoveButton
+          record={record}
+          resource={resource}
+          visible={config.enableFavourites && present}
+        />
+      )}
       <MoreButton record={record} onClick={handleClick} info={options.info} />
       <Menu
         id={'menu' + record.id}

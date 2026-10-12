@@ -33,7 +33,7 @@ import (
 // Acciones válidas (whitelist: nada fuera de esto se ejecuta).
 // playTrack: reproduce ahora (reemplaza la cola).
 // playNextTrack: inserta justo después del tema actual (prioridad manual).
-// queueTrack: añade al final de la cola (suena tras lo encolado a mano,
+// queueTrack: añade después de las peticiones manuales pendientes (suena
 // antes que el relleno automático artista=>género del Auto-DJ).
 // deleteTrack: borra el archivo de la biblioteca (lo ejecuta el laptop vía
 // Emepetre, mismo origen /downloader; Navidrome monta /music en :ro y no
@@ -60,17 +60,19 @@ type remoteCommand struct {
 }
 
 type remotePlaybackState struct {
-	TrackID  string  `json:"trackId,omitempty"`
-	Title    string  `json:"title,omitempty"`
-	Artist   string  `json:"artist,omitempty"`
-	Playing  bool    `json:"playing"`
-	Volume   float64 `json:"volume,omitempty"`
-	Position int64   `json:"positionMs,omitempty"`
-	Duration int64   `json:"durationMs,omitempty"`
+	TrackID    string  `json:"trackId,omitempty"`
+	Title      string  `json:"title,omitempty"`
+	NextTitle  string  `json:"nextTitle,omitempty"`
+	NextArtist string  `json:"nextArtist,omitempty"`
+	Artist     string  `json:"artist,omitempty"`
+	Playing    bool    `json:"playing"`
+	Volume     float64 `json:"volume,omitempty"`
+	Position   int64   `json:"positionMs,omitempty"`
+	Duration   int64   `json:"durationMs,omitempty"`
 	// Aviso puntual para el mando (p. ej. resultado de un borrado).
 	// El laptop lo pisa en la siguiente publicación sin aviso.
-	Notice   string    `json:"notice,omitempty"`
-	At       time.Time `json:"at"`
+	Notice string    `json:"notice,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 type remoteSession struct {

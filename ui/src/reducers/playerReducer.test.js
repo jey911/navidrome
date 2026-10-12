@@ -5,6 +5,9 @@ import {
   PLAYER_CURRENT,
   PLAYER_REFRESH_QUEUE,
   PLAYER_REMOVE_TRACK,
+  addTracks,
+  playNext,
+  setTrack,
 } from '../actions'
 
 describe('playerReducer', () => {
@@ -266,4 +269,97 @@ describe('playerReducer', () => {
       expect(result).toBe(state)
     })
   })
+})
+
+describe('manual queue priority', () => {
+  const makeState = () => ({
+    queue: [
+      { trackId: 'playing', uuid: 'a', song: { title: 'Actual' } },
+      { trackId: 'context', uuid: 'b' },
+      { trackId: 'automatic', uuid: 'c' },
+    ],
+    current: { uuid: 'a', trackId: 'playing' },
+    savedPlayIndex: 0,
+    mode: 'shufflePlay',
+  })
+  it('inserts manual requests before context/Auto-DJ in FIFO order without mutating Redux', () => {
+    const state = makeState()
+    Object.freeze(state.queue)
+    const first = playerReducer(
+      state,
+      addTracks({ m1: { id: 'm1', title: 'Uno' } }),
+    )
+    const second = playerReducer(
+      first,
+      addTracks({ m2: { id: 'm2', title: 'Dos' } }),
+    )
+    expect(state.queue.map((x) => x.trackId)).toEqual([
+      'playing',
+      'context',
+      'automatic',
+    ])
+    expect(second.queue.map((x) => x.trackId)).toEqual([
+      'playing',
+      'm1',
+      'm2',
+      'context',
+      'automatic',
+    ])
+    expect(second.queue[1].manualQueued).toBe(true)
+    expect(second.current).toBe(state.current)
+    expect(second.savedPlayIndex).toBe(0)
+    expect(second.playIndex).toBeUndefined()
+  })
+  it('appends automatic tracks after manual requests', () => {
+    const queued = playerReducer(makeState(), addTracks({ m: { id: 'm' } }))
+    const result = playerReducer(
+      queued,
+      addTracks({ dj: { id: 'dj' } }, undefined, { automatic: true }),
+    )
+    expect(result.queue.map((x) => x.trackId)).toEqual([
+      'playing',
+      'm',
+      'context',
+      'automatic',
+      'dj',
+    ])
+    expect(result.queue.at(-1).manualQueued).toBe(false)
+  })
+  it('play next takes priority without changing the current song', () => {
+    const queued = playerReducer(makeState(), addTracks({ m: { id: 'm' } }))
+    const result = playerReducer(queued, playNext({ n: { id: 'n' } }))
+    expect(result.queue.map((x) => x.trackId)).toEqual([
+      'playing',
+      'n',
+      'm',
+      'context',
+      'automatic',
+    ])
+    expect(result.current).toBe(queued.current)
+  })
+  it('a user play restores autoplay after queue restoration disabled it', () => {
+    const result = playerReducer(
+      { ...makeState(), autoPlay: false },
+      setTrack({ id: 'new' }),
+    )
+    expect(result.autoPlay).toBe(true)
+    expect(result.playIndex).toBe(0)
+  })
+})
+
+it('consumes the manual priority marker when that song starts', () => {
+  const state = {
+    queue: [
+      { trackId: 'm1', uuid: 'm', manualQueued: true },
+      { trackId: 'm2', uuid: 'n', manualQueued: true },
+    ],
+    current: {},
+  }
+  const result = playerReducer(state, {
+    type: PLAYER_CURRENT,
+    data: { uuid: 'm', trackId: 'm1' },
+  })
+  expect(result.queue[0].manualQueued).toBe(false)
+  expect(result.queue[1].manualQueued).toBe(true)
+  expect(state.queue[0].manualQueued).toBe(true)
 })

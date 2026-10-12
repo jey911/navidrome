@@ -1041,3 +1041,91 @@ button.mm-tool-item {
     background: rgba(255, 255, 255, 0.06);
   }
 }
+
+/* Compact mobile library: only title, artist, play and three actions. */
+@media (max-width: 768px) {
+  .mm-home table[data-testid='home-songs-table'] {
+    display: block;
+    min-width: 0;
+    width: 100%;
+  }
+  .mm-home table[data-testid='home-songs-table'] thead {
+    display: none;
+  }
+  .mm-home table[data-testid='home-songs-table'] tbody {
+    display: block;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr.mm-mobile-song {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) 120px;
+    gap: 2px 6px;
+    padding: 12px 0;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .mm-home table[data-testid='home-songs-table'] tr.mm-mobile-song > td {
+    display: block;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr > td.mm-mobile-play {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr > td.mm-mobile-title {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr > td.mm-mobile-artist {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: 12px;
+    color: #a2b1c6;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr > td.mm-mobile-actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+  .mm-mobile-song .mm-row-actions {
+    gap: 0;
+  }
+  .mm-mobile-song button,
+  .mm-mobile-song .MuiIconButton-root {
+    width: 40px;
+    height: 44px;
+    padding: 8px;
+    min-width: 0;
+  }
+  .mm-mobile-play button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    color: #ebf3ff;
+    cursor: pointer;
+  }
+  .mm-mobile-song.is-current .mm-mobile-title,
+  .mm-mobile-song.is-current .mm-mobile-play button {
+    color: #70b6ff;
+  }
+  .mm-home table[data-testid='home-songs-table'] tr > td.mm-mobile-progress {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    margin-top: 5px;
+  }
+  .mm-mobile-progress div {
+    height: 3px;
+    border-radius: 3px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .mm-mobile-progress span {
+    display: block;
+    height: 100%;
+    background: #4b9cff;
+  }
+}

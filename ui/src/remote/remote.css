@@ -1,0 +1,82 @@
+.mm-remote {
+  color: #edf4ff;
+}
+.mm-remote .MuiCard-root {
+  background: linear-gradient(150deg, #111f32, #0b1423);
+  border: 1px solid rgba(150, 190, 240, 0.12);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+.mm-remote .MuiCardContent-root {
+  padding: 20px;
+}
+.mm-remote .MuiTypography-colorTextSecondary {
+  color: #a6b8d2;
+}
+.mm-remote .MuiIconButton-root {
+  min-width: 44px;
+  min-height: 44px;
+}
+.mm-remote-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mm-remote-search .MuiFormControl-root {
+  flex: 1;
+  min-width: 0;
+}
+.mm-remote-next {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(75, 156, 255, 0.08);
+  min-width: 0;
+}
+.mm-remote-next small,
+.mm-remote-next strong,
+.mm-remote-next span {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mm-remote-next small {
+  color: #70b6ff;
+  margin-bottom: 4px;
+}
+.mm-remote-next span {
+  color: #a6b8d2;
+  font-size: 13px;
+  margin-top: 3px;
+}
+.mm-remote-connection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.mm-remote-connection .MuiFormControl-root {
+  flex: 1;
+  min-width: 100px;
+}
+@media (max-width: 768px) {
+  .mm-remote .MuiCardContent-root {
+    padding: 16px;
+  }
+  .mm-remote .MuiListItem-root {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .mm-remote-result-actions {
+    justify-content: flex-end;
+  }
+  .mm-remote .MuiListItemText-root {
+    margin: 4px 0;
+  }
+  .mm-remote input {
+    font-size: 16px;
+  }
+}

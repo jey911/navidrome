@@ -46,6 +46,7 @@ import {
 } from '../remote/remoteApi'
 import {
   createCommandDedupe,
+  createRemoteTaskQueue,
   runDedupedRemoteCommand,
 } from '../remote/remoteCommands'
 import { sendNotification } from '../utils'
@@ -88,6 +89,8 @@ const Player = () => {
   const remotePublishAtRef = useRef(0)
   // El servidor puede entregar la misma orden por SSE y por /pending.
   const remoteDedupe = useMemo(() => createCommandDedupe(), [])
+  const enqueueRemoteTask = useMemo(() => createRemoteTaskQueue(), [])
+  const remotePublishQueue = useRef(Promise.resolve())
   const dataProviderRef = useRef(dataProvider)
   dataProviderRef.current = dataProvider
   // Auto-DJ casa (default ON, persiste en settings): al acabarse la cola,
@@ -182,8 +185,16 @@ const Player = () => {
       el && Number.isFinite(el.duration) && el.duration > 0
         ? Math.floor(el.duration * 1000)
         : undefined
-    publishState(r.sessionId, r.code, {
+    const snapshot = {
       trackId: st.current?.trackId || song.id || '',
+      nextTitle:
+        st.queue[
+          st.queue.findIndex((item) => item.uuid === st.current?.uuid) + 1
+        ]?.song?.title || '',
+      nextArtist:
+        st.queue[
+          st.queue.findIndex((item) => item.uuid === st.current?.uuid) + 1
+        ]?.song?.artist || '',
       title: song.title || '',
       artist: song.artist || '',
       playing: !!(el && !el.paused),
@@ -191,8 +202,19 @@ const Player = () => {
       positionMs,
       durationMs,
       ...overrides,
-    }).catch(() => {})
+    }
+    remotePublishQueue.current = remotePublishQueue.current
+      .catch(() => {})
+      .then(() => publishState(r.sessionId, r.code, snapshot))
+      .catch(() => {})
   }, [])
+
+  // Publish after Redux commits a track/queue change, rather than reporting
+  // the previous song from inside its play callback.
+  const { current: publishedCurrent, queue: publishedQueue } = playerState
+  useEffect(() => {
+    publishRemote({}, true)
+  }, [publishedCurrent, publishedQueue, remote.enabled, publishRemote])
 
   // --- Control remoto: ejecutar órdenes del móvil en este reproductor ---
   const executeRemoteCommand = useCallback(
@@ -203,13 +225,14 @@ const Player = () => {
         dataProvider: dataProviderRef.current,
         dispatch,
         getPlayerState: () => playerStateRef.current,
+        enqueue: enqueueRemoteTask,
         notify: (overrides) => publishRemote(overrides, true),
       })
       if (handled) {
         publishRemote({}, true)
       }
     },
-    [dispatch, publishRemote, remoteDedupe],
+    [dispatch, publishRemote, remoteDedupe, enqueueRemoteTask],
   )
 
   const toggleRemote = useCallback(() => {
@@ -320,6 +343,7 @@ const Player = () => {
       idx >= 0 ? autodjQueue.length - idx - 1 : autodjQueue.length
     if (remaining > 2 || autodjFetchingRef.current) return
     autodjFetchingRef.current = true
+    const anchor = autodjQueue[0]?.uuid
     const exclude = autodjQueue.map((item) => item.trackId)
     const song = autodjCurrent?.song
     const preferArtist = remoteRef.current.enabled
@@ -331,8 +355,19 @@ const Player = () => {
     )
       .then(({ songs: songData }) => {
         autodjFetchingRef.current = false
-        if (Object.keys(songData).length > 0) {
-          dispatch(addTracks(songData))
+        if (
+          playerStateRef.current.queue[0]?.uuid === anchor &&
+          Object.keys(songData).length > 0
+        ) {
+          dispatch(addTracks(songData, undefined, { automatic: true }))
+          setTimeout(() => {
+            const audio = audioInstanceRef.current
+            if (
+              audio?.ended &&
+              playerStateRef.current.queue[0]?.uuid === anchor
+            )
+              audio.playNext?.()
+          }, 600)
         }
       })
       .catch(() => {
@@ -422,7 +457,7 @@ const Player = () => {
       theme: playerTheme,
       bounds: 'body',
       playMode: playerState.mode,
-      mode: 'full',
+      mode: isDesktop ? 'full' : 'mini',
       loadAudioErrorPlayNext: false,
       autoPlayInitLoadPlayList: true,
       clearPriorAudioLists: false,
@@ -462,6 +497,18 @@ const Player = () => {
     return {
       ...defaultOptions,
       audioLists: playerState.queue.map((item) => item),
+      // Shuffle must not skip manually queued requests.
+      playMode: playerState.queue
+        .slice(
+          Math.max(
+            0,
+            playerState.queue.findIndex((item) => item.uuid === current.uuid) +
+              1,
+          ),
+        )
+        .some((item) => item.manualQueued)
+        ? 'order'
+        : playerState.mode,
       playIndex: playerState.playIndex,
       autoPlay:
         playerState.queue.length > 0 &&
@@ -492,14 +539,18 @@ const Player = () => {
     [dispatch],
   )
 
-  const onAudioProgress = useCallback((info) => {
-    if (info.ended) {
-      document.title = 'Navidrome'
-    }
-    if (!info.isRadio && info.currentTime != null) {
-      lastPositionMsRef.current = Math.floor(info.currentTime * 1000)
-    }
-  }, [])
+  const onAudioProgress = useCallback(
+    (info) => {
+      if (info.ended) {
+        document.title = 'Navidrome'
+      }
+      if (!info.isRadio && info.currentTime != null) {
+        lastPositionMsRef.current = Math.floor(info.currentTime * 1000)
+      }
+      publishRemote()
+    },
+    [publishRemote],
+  )
 
   const onAudioVolumeChange = useCallback(
     // sqrt to compensate for the logarithmic volume
@@ -550,7 +601,15 @@ const Player = () => {
             info.cover,
           )
         }
-        publishRemote({}, true)
+        publishRemote(
+          {
+            trackId: info.trackId,
+            title: song.title,
+            artist: song.artist,
+            playing: true,
+          },
+          true,
+        )
       }
     },
     [context, dispatch, showNotifications, currentTrackId, publishRemote],
@@ -578,7 +637,15 @@ const Player = () => {
         subsonic.reportPlayback(currentTrackId, posMs, 'paused')
       }
       setHeartbeatTrackId(null)
-      publishRemote({ playing: false }, true)
+      publishRemote(
+        {
+          trackId: info.trackId,
+          title: info.song?.title || '',
+          artist: info.song?.artist || '',
+          playing: false,
+        },
+        true,
+      )
     },
     [dispatch, currentTrackId, publishRemote],
   )
@@ -606,6 +673,7 @@ const Player = () => {
         const remaining = idx >= 0 ? st.queue.length - idx - 1 : st.queue.length
         if (idx >= 0 && remaining <= 0 && !autodjFetchingRef.current) {
           autodjFetchingRef.current = true
+          const anchor = st.queue[0]?.uuid
           const exclude = st.queue.map((item) => item.trackId)
           const endedSong = info.song || st.current?.song
           const shuffle = st.mode === 'shufflePlay'
@@ -613,10 +681,20 @@ const Player = () => {
           fetchContinueTracks(endedSong, { shuffle, preferArtist }, exclude, 3)
             .then(({ songs: songData }) => {
               autodjFetchingRef.current = false
-              if (Object.keys(songData).length > 0) {
-                dispatch(addTracks(songData))
+              if (
+                playerStateRef.current.queue[0]?.uuid === anchor &&
+                Object.keys(songData).length > 0
+              ) {
+                dispatch(addTracks(songData, undefined, { automatic: true }))
                 setTimeout(() => {
-                  audioInstanceRef.current?.playNext?.()
+                  const active = audioInstanceRef.current
+                  // A manual request or another track may have started while
+                  // the async continuation was being fetched.
+                  if (
+                    active?.ended &&
+                    playerStateRef.current.queue[0]?.uuid === anchor
+                  )
+                    active.playNext?.()
                 }, 600)
               }
             })
