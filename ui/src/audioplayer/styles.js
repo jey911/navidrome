@@ -26,7 +26,8 @@ const useStyle = makeStyles(
       transition: 'all 500ms ease-out',
     },
     player: {
-      display: (props) => (props.visible ? 'block' : 'none'),
+      display: (props) =>
+        props.visible && !props.inlineOnly ? 'block' : 'none',
       '@media screen and (max-width:768px)': {
         '& .sound-operation': {
           display: 'none',

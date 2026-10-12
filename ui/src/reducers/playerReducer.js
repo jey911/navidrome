@@ -3,6 +3,7 @@ import subsonic from '../subsonic'
 import { decisionService } from '../transcode'
 import {
   PLAYER_ADD_TRACKS,
+  PLAYER_MANUAL_QUEUE,
   PLAYER_CLEAR_QUEUE,
   PLAYER_CURRENT,
   PLAYER_PLAY_NEXT,
@@ -121,7 +122,17 @@ const reducePlayTracks = (state, { data, id }) => {
 const reduceSetTrack = (state, { data }) => {
   return {
     ...state,
-    queue: [mapToAudioLists(data)],
+    queue: [
+      mapToAudioLists(data),
+      ...(state.manualOnly
+        ? state.queue.filter(
+            (item) =>
+              item.manualQueued &&
+              item.uuid !== state.current?.uuid &&
+              item.trackId !== data.id,
+          )
+        : []),
+    ],
     playIndex: 0,
     autoPlay: true,
     clear: true,
@@ -131,6 +142,7 @@ const reduceSetTrack = (state, { data }) => {
 // Manual requests are FIFO immediately after the current song, ahead of
 // album/search context and Auto-DJ. Never mutate the previous Redux queue.
 const reduceAddTracks = (state, { data, automatic = false }) => {
+  if (automatic && state.manualOnly) return state
   const tracks = Object.values(data).map((song) => ({
     ...mapToAudioLists(song),
     manualQueued: !automatic,
@@ -254,9 +266,37 @@ const reduceMode = (state, { data: { mode } }) => {
 export const playerReducer = (previousState = initialState, payload) => {
   const { type } = payload
   switch (type) {
+    case PLAYER_MANUAL_QUEUE: {
+      const index = previousState.queue.findIndex(
+        (item) => item.uuid === previousState.current?.uuid,
+      )
+      const currentItem = previousState.queue[index]
+      const queue = [
+        ...(currentItem ? [currentItem] : []),
+        ...previousState.queue
+          .slice(index + 1)
+          .filter((item) => item.manualQueued),
+      ]
+      return {
+        ...previousState,
+        queue,
+        manualOnly: true,
+        clear: true,
+        autoPlay: false,
+        playIndex:
+          previousState.playIndex != null && queue.length ? 0 : undefined,
+        savedPlayIndex: currentItem ? 0 : -1,
+      }
+    }
     case PLAYER_CLEAR_QUEUE:
       return reduceClearQueue()
     case PLAYER_PLAY_TRACKS:
+      if (previousState.manualOnly) {
+        const song = payload.data[payload.id] || Object.values(payload.data)[0]
+        return song
+          ? reduceSetTrack(previousState, { data: song })
+          : previousState
+      }
       return reducePlayTracks(previousState, payload)
     case PLAYER_SET_TRACK:
       return reduceSetTrack(previousState, payload)

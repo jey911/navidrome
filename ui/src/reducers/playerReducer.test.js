@@ -6,6 +6,8 @@ import {
   PLAYER_REFRESH_QUEUE,
   PLAYER_REMOVE_TRACK,
   addTracks,
+  manualQueue,
+  playTracks,
   playNext,
   setTrack,
 } from '../actions'
@@ -362,4 +364,44 @@ it('consumes the manual priority marker when that song starts', () => {
   expect(result.queue[0].manualQueued).toBe(false)
   expect(result.queue[1].manualQueued).toBe(true)
   expect(state.queue[0].manualQueued).toBe(true)
+})
+
+it('mobile manual mode removes automatic fill while retaining current playback and explicit requests', () => {
+  const state = {
+    queue: [
+      { uuid: 'now', trackId: 'now' },
+      { uuid: 'dj', trackId: 'dj' },
+      { uuid: 'm', trackId: 'm', manualQueued: true },
+    ],
+    current: { uuid: 'now', trackId: 'now' },
+    savedPlayIndex: 0,
+  }
+  const result = playerReducer(state, manualQueue())
+  expect(result.queue.map((x) => x.trackId)).toEqual(['now', 'm'])
+  expect(result.manualOnly).toBe(true)
+  expect(result.autoPlay).toBe(false)
+  expect(result.current).toBe(state.current)
+  expect(
+    playerReducer(
+      result,
+      addTracks({ dj2: { id: 'dj2' } }, undefined, { automatic: true }),
+    ),
+  ).toBe(result)
+  const selected = playerReducer(result, setTrack({ id: 'selected' }))
+  expect(selected.queue.map((x) => x.trackId)).toEqual(['selected', 'm'])
+  const context = playerReducer(
+    result,
+    playTracks({ a: { id: 'a' }, b: { id: 'b' } }, ['a', 'b'], 'b'),
+  )
+  expect(context.queue.map((x) => x.trackId)).toEqual(['b', 'm'])
+})
+
+it('mobile mode starts with an empty pending queue when no manual request exists', () => {
+  const result = playerReducer(
+    { queue: [{ uuid: 'old', trackId: 'old' }], current: {} },
+    manualQueue(),
+  )
+  expect(result.queue).toEqual([])
+  const selected = playerReducer(result, setTrack({ id: 'chosen' }))
+  expect(selected.queue.map((x) => x.trackId)).toEqual(['chosen'])
 })

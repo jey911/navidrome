@@ -28,6 +28,7 @@ import useStyle from './styles'
 import AudioTitle from './AudioTitle'
 import {
   addTracks,
+  manualQueue,
   clearQueue,
   currentPlaying,
   refreshQueue,
@@ -95,7 +96,13 @@ const Player = () => {
   dataProviderRef.current = dataProvider
   // Auto-DJ casa (default ON, persiste en settings): al acabarse la cola,
   // seguir con temas aleatorios en vez de detenerse.
-  const autodj = useSelector((state) => state.settings.autodj !== false)
+  const isDesktop = useMediaQuery('(min-width:769px)', { noSsr: true })
+  const manualOnly = !isDesktop || playerState.manualOnly
+  const autodj =
+    useSelector((state) => state.settings.autodj !== false) && !manualOnly
+  useEffect(() => {
+    if (!isDesktop) dispatch(manualQueue())
+  }, [isDesktop, dispatch])
   const autodjRef = useRef(autodj)
   autodjRef.current = autodj
   // La librería del reproductor decide si dibuja la vista de móvil con su
@@ -103,7 +110,6 @@ const Player = () => {
   // portrait`). Ese defecto hace que al girar el iPhone en horizontal salte a
   // la barra de 80px, que es inservible en un móvil. Se le pasa el mismo
   // criterio que se usa aquí para que las dos piezas nunca discrepen.
-  const isDesktop = useMediaQuery('(min-width:769px)')
   const isMobilePlayer =
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
       navigator.userAgent,
@@ -192,11 +198,12 @@ const Player = () => {
       .slice(currentIndex + 1)
       .some((item) => item.manualQueued)
     const nextSong =
-      st.mode === 'singleLoop' && !pendingManual
+      st.mode === 'singleLoop' && !st.manualOnly && !pendingManual
         ? song
         : st.queue[currentIndex + 1]?.song ||
-          (st.mode === 'orderLoop' ? st.queue[0]?.song : null)
-    const randomNext = st.mode === 'shufflePlay' && !pendingManual
+          (st.mode === 'orderLoop' && !st.manualOnly ? st.queue[0]?.song : null)
+    const randomNext =
+      st.mode === 'shufflePlay' && !st.manualOnly && !pendingManual
     const snapshot = {
       trackId: st.current?.trackId || song.id || '',
       nextTitle: randomNext ? 'Selección aleatoria' : nextSong?.title || '',
@@ -362,6 +369,7 @@ const Player = () => {
       .then(({ songs: songData }) => {
         autodjFetchingRef.current = false
         if (
+          autodjRef.current &&
           playerStateRef.current.queue[0]?.uuid === anchor &&
           Object.keys(songData).length > 0
         ) {
@@ -386,6 +394,7 @@ const Player = () => {
   const classes = useStyle({
     isRadio,
     visible,
+    inlineOnly: !isDesktop,
     enableCoverAnimation: config.enableCoverAnimation,
   })
   const showNotifications = useSelector(
@@ -504,17 +513,20 @@ const Player = () => {
       ...defaultOptions,
       audioLists: playerState.queue.map((item) => item),
       // Shuffle must not skip manually queued requests.
-      playMode: playerState.queue
-        .slice(
-          Math.max(
-            0,
-            playerState.queue.findIndex((item) => item.uuid === current.uuid) +
-              1,
-          ),
-        )
-        .some((item) => item.manualQueued)
+      playMode: manualOnly
         ? 'order'
-        : playerState.mode,
+        : playerState.queue
+              .slice(
+                Math.max(
+                  0,
+                  playerState.queue.findIndex(
+                    (item) => item.uuid === current.uuid,
+                  ) + 1,
+                ),
+              )
+              .some((item) => item.manualQueued)
+          ? 'order'
+          : playerState.mode,
       playIndex: playerState.playIndex,
       autoPlay:
         playerState.queue.length > 0 &&
@@ -534,6 +546,7 @@ const Player = () => {
     }
   }, [
     playerState,
+    manualOnly,
     defaultOptions,
     isMobilePlayer,
     remote.enabled,
@@ -688,6 +701,7 @@ const Player = () => {
             .then(({ songs: songData }) => {
               autodjFetchingRef.current = false
               if (
+                autodjRef.current &&
                 playerStateRef.current.queue[0]?.uuid === anchor &&
                 Object.keys(songData).length > 0
               ) {

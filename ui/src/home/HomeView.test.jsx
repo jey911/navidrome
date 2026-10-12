@@ -14,6 +14,7 @@ import { setTrack, addTracks, playTracks, removeTrack } from '../actions'
 import { deleteTrackViaEmepetre } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
 import { setViewport } from '../setupTests'
+import { searchSongs } from '../remote/searchSongs'
 import { registerAudioInstance } from '../audioplayer/audioBus'
 
 vi.mock('react-admin', async (importOriginal) => {
@@ -31,6 +32,8 @@ vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...actual, useHistory: () => ({ push: mockPush }) }
 })
+
+vi.mock('../remote/searchSongs', () => ({ searchSongs: vi.fn() }))
 
 vi.mock('../subsonic', () => ({
   default: { startScan: vi.fn(), getCoverArtUrl: () => 'http://coverart' },
@@ -56,7 +59,8 @@ const mockNotify = vi.fn()
 const mockRefresh = vi.fn()
 const mockPush = vi.fn()
 const mockGetList = vi.fn()
-const mockDataProvider = { getList: mockGetList }
+const mockGetMany = vi.fn()
+const mockDataProvider = { getList: mockGetList, getMany: mockGetMany }
 
 const song = {
   id: 's1',
@@ -106,6 +110,10 @@ const renderView = (player = { queue: [], current: {}, mode: 'order' }) => {
 describe('<HomeView />', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    searchSongs.mockResolvedValue([{ id: 'found' }])
+    mockGetMany.mockResolvedValue({
+      data: [{ ...song, id: 'found', title: 'Resultado de búsqueda' }],
+    })
     mockGetList.mockImplementation((resource) => {
       if (resource === 'album') {
         return Promise.resolve({
@@ -271,13 +279,38 @@ describe('<HomeView />', () => {
     expect(deleteTrackViaEmepetre).not.toHaveBeenCalled()
   })
 
-  it('busca y navega a canciones', async () => {
+  it('filters the same library as you type and restores it when cleared', async () => {
+    renderView()
+    const table = await screen.findByTestId('home-songs-table')
+    const input = screen.getByTestId('home-library-search')
+    fireEvent.change(input, { target: { value: 'tito' } })
+    await screen.findByText('Resultado de búsqueda')
+    expect(searchSongs).toHaveBeenCalledWith('tito', 50)
+    expect(screen.getByTestId('home-songs-table')).toBe(table)
+    expect(screen.queryByText(song.title)).not.toBeInTheDocument()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(mockPush).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: '' } })
+    await screen.findByText(song.title)
+    expect(screen.queryByText('Resultado de búsqueda')).not.toBeInTheDocument()
+  })
+
+  it('ignores a late search response after the input was cleared', async () => {
+    let resolveSearch
+    searchSongs.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSearch = resolve
+      }),
+    )
     renderView()
     const input = await screen.findByTestId('home-library-search')
     fireEvent.change(input, { target: { value: 'tito' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('/song?'))
-    expect(mockPush.mock.calls[0][0]).toContain(encodeURIComponent('tito'))
+    await waitFor(() => expect(searchSongs).toHaveBeenCalled())
+    fireEvent.change(input, { target: { value: '' } })
+    await screen.findByText(song.title)
+    resolveSearch([{ id: 'found' }])
+    await waitFor(() => expect(mockGetMany).toHaveBeenCalled())
+    expect(screen.queryByText('Resultado de búsqueda')).not.toBeInTheDocument()
   })
 
   it('dispara sincronización rápida desde Herramientas', async () => {

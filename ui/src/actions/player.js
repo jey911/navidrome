@@ -1,3 +1,6 @@
+export const PLAYER_MANUAL_QUEUE = 'PLAYER_MANUAL_QUEUE'
+export const manualQueue = () => ({ type: PLAYER_MANUAL_QUEUE })
+
 export const PLAYER_ADD_TRACKS = 'PLAYER_ADD_TRACKS'
 export const PLAYER_PLAY_NEXT = 'PLAYER_PLAY_NEXT'
 export const PLAYER_REMOVE_TRACK = 'PLAYER_REMOVE_TRACK'

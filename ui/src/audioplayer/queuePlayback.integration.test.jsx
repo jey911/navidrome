@@ -12,6 +12,7 @@ beforeAll(async () => {
   vi.spyOn(sortable, 'mount').mockImplementation(() => {})
   MusicPlayer = (await import('navidrome-music-player')).default
 })
+import useStyle from './styles'
 import { setViewport } from '../setupTests'
 
 beforeEach(() => {
@@ -25,6 +26,11 @@ afterEach(() => {
   setViewport({ phone: false })
 })
 
+const InlinePlayer = ({ playerRef, ...props }) => {
+  const classes = useStyle({ visible: true, inlineOnly: true })
+  return <MusicPlayer ref={playerRef} {...props} className={classes.player} />
+}
+
 it('reorders the real player queue without restarting the current song, then plays the manual next song', async () => {
   const ref = createRef()
   const a = { uuid: 'a', trackId: 'a', name: 'Actual', musicSrc: '/a.mp3' }
@@ -37,7 +43,7 @@ it('reorders the real player queue without restarting the current song, then pla
     musicSrc: '/m.mp3',
   }
   const props = {
-    ref,
+    playerRef: ref,
     getAudioInstance: vi.fn(),
     mode: 'mini',
     quietUpdate: true,
@@ -48,11 +54,11 @@ it('reorders the real player queue without restarting the current song, then pla
     mobileMediaQuery: '(max-width: 768px)',
     showMediaSession: false,
   }
-  const view = render(<MusicPlayer {...props} audioLists={[a, b]} />)
+  const view = render(<InlinePlayer {...props} audioLists={[a, b]} />)
   await waitFor(() => expect(ref.current.state.name).toBe('Actual'))
   const playingId = ref.current.state.playId
   ref.current.audio.currentTime = 42
-  view.rerender(<MusicPlayer {...props} audioLists={[a, m, b]} />)
+  view.rerender(<InlinePlayer {...props} audioLists={[a, m, b]} />)
   await waitFor(() =>
     expect(ref.current.state.audioLists.map((x) => x.trackId)).toEqual([
       'a',
@@ -63,6 +69,8 @@ it('reorders the real player queue without restarting the current song, then pla
   expect(ref.current.state.playId).toBe(playingId)
   expect(ref.current.audio.currentTime).toBe(42)
   expect(ref.current.state.toggle).toBe(false)
+  const playerRoot = document.querySelector('.react-jinke-music-player-main')
+  expect(getComputedStyle(playerRoot).display).toBe('none')
   act(() => {
     ref.current.audio.playNext()
   })

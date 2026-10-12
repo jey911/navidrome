@@ -42,6 +42,7 @@ import {
 } from '../remote/remoteCommands'
 import subsonic from '../subsonic'
 import { LoveButton, SongContextMenu, SongPlayButton, Title } from '../common'
+import { searchSongs } from '../remote/searchSongs'
 import './home.css'
 
 const LOSSLESS = new Set(['flac', 'alac', 'wav', 'aiff', 'dsd', 'dff'])
@@ -66,17 +67,6 @@ const genreClass = (genre = '') => {
   if (g.includes('salsa')) return 'mm-chip mm-salsa'
   if (g.includes('merengue')) return 'mm-chip mm-merengue'
   return 'mm-chip'
-}
-
-const songListUrl = (q) => {
-  const params = new URLSearchParams({
-    filter: JSON.stringify({ title: q }),
-    order: 'ASC',
-    page: '1',
-    perPage: '15',
-    sort: 'title',
-  })
-  return `/song?${params.toString()}`
 }
 
 // --- Héroe: lo que suena ahora, con transporte real -----------------------
@@ -314,12 +304,17 @@ const HomeView = () => {
 
   const queue = playerState?.queue || []
   const current = playerState?.current || {}
+  const displayQueue = isPhone
+    ? queue.filter((item) => item.manualQueued && item.uuid !== current.uuid)
+    : queue
   const [query, setQuery] = useState('')
   const [recentAlbums, setRecentAlbums] = useState(null)
   const [playlists, setPlaylists] = useState(null)
   const [latestSongs, setLatestSongs] = useState(null)
   const [songsTotal, setSongsTotal] = useState(null)
   const [scanning, setScanning] = useState(false)
+  const [libraryRevision, setLibraryRevision] = useState(0)
+  const [searching, setSearching] = useState(false)
   const [rowPlayback, setRowPlayback] = useState({
     playing: false,
     progress: 0,
@@ -373,41 +368,65 @@ const HomeView = () => {
         .then((res) => alive && setPlaylists(res.data || []))
         .catch(() => alive && setPlaylists([]))
     }
-    dataProvider
-      .getList('song', {
-        pagination: { page: 1, perPage: 10 },
-        sort: { field: 'recently_added', order: 'DESC' },
-        filter: {},
-      })
-      .then((res) => {
-        if (!alive) return
-        setLatestSongs(res.data || [])
-        setSongsTotal(res.total)
-      })
-      .catch(() => alive && setLatestSongs([]))
     return () => {
       alive = false
     }
   }, [dataProvider, isPhone])
 
-  const reloadSongs = useCallback(() => {
-    dataProvider
-      .getList('song', {
-        pagination: { page: 1, perPage: 10 },
-        sort: { field: 'recently_added', order: 'DESC' },
-        filter: {},
-      })
-      .then((res) => {
-        setLatestSongs(res.data || [])
-        setSongsTotal(res.total)
-      })
-      .catch(() => {})
-  }, [dataProvider])
-
-  const submitSearch = () => {
+  // Search replaces rows inside the library. Cleanup also rejects delayed
+  // replies from an older query, including when the input is cleared.
+  useEffect(() => {
+    let alive = true
     const q = query.trim()
-    if (q) history.push(songListUrl(q))
-  }
+    const load = async () => {
+      setSearching(true)
+      try {
+        let rows, total
+        if (q) {
+          const matches = await searchSongs(q, 50)
+          const ids = matches.map((song) => song.id)
+          const response = ids.length
+            ? await dataProvider.getMany('song', { ids })
+            : { data: [] }
+          const byId = new Map(response.data.map((song) => [song.id, song]))
+          rows = ids.map((id) => byId.get(id)).filter(Boolean)
+          total = rows.length
+        } else {
+          const response = await dataProvider.getList('song', {
+            pagination: { page: 1, perPage: 10 },
+            sort: { field: 'recently_added', order: 'DESC' },
+            filter: {},
+          })
+          rows = response.data || []
+          total = response.total
+        }
+        if (alive) {
+          setLatestSongs(rows)
+          setSongsTotal(total)
+        }
+      } catch {
+        if (alive) {
+          setLatestSongs([])
+          notify(
+            'No se pudo cargar la biblioteca. Revisa la conexión.',
+            'warning',
+          )
+        }
+      } finally {
+        if (alive) setSearching(false)
+      }
+    }
+    const timer = q ? setTimeout(load, 180) : null
+    if (!q) load()
+    return () => {
+      alive = false
+      if (timer) clearTimeout(timer)
+    }
+  }, [query, dataProvider, libraryRevision, notify])
+  const reloadSongs = useCallback(
+    () => setLibraryRevision((value) => value + 1),
+    [],
+  )
 
   const quickScan = async () => {
     setScanning(true)
@@ -423,6 +442,10 @@ const HomeView = () => {
   }
 
   const jumpToQueueItem = (item) => {
+    if (isPhone) {
+      playFromRow(item.song)
+      return
+    }
     const data = {}
     const ids = queue.map((it) => {
       data[it.uuid] = it.song
@@ -648,7 +671,9 @@ const HomeView = () => {
                 <p>
                   {songsTotal != null
                     ? translate('home.librarySubtitle', {
-                        _: `${songsTotal} canciones en total · últimas agregadas`,
+                        _: query.trim()
+                          ? `${songsTotal} resultados`
+                          : `${songsTotal} canciones en total · últimas agregadas`,
                       })
                     : translate('home.librarySubtitleShort', {
                         _: 'Últimas canciones agregadas',
@@ -658,7 +683,7 @@ const HomeView = () => {
 
               <div className="mm-library-tools">
                 <div className="mm-library-search">
-                  <SearchIcon />
+                  {searching ? <CircularProgress size={18} /> : <SearchIcon />}
                   <input
                     type="text"
                     placeholder={translate('home.librarySearch', {
@@ -666,9 +691,6 @@ const HomeView = () => {
                     })}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') submitSearch()
-                    }}
                     data-testid="home-library-search"
                   />
                 </div>
@@ -865,23 +887,25 @@ const HomeView = () => {
             <div className="mm-queue-head">
               <h3>{translate('home.queue', { _: 'Cola de reproducción' })}</h3>
               <small>
-                {queue.length > 0
+                {displayQueue.length > 0
                   ? translate('home.queueCount', {
-                      _: `${queue.length} canciones`,
+                      _: `${displayQueue.length} canciones`,
                     })
                   : ''}
               </small>
             </div>
 
-            {queue.length === 0 ? (
+            {displayQueue.length === 0 ? (
               <div className="mm-empty">
                 {translate('home.queueEmpty', {
-                  _: 'Cola vacía: dale ▶ a algo.',
+                  _: isPhone
+                    ? 'Cola vacía: añade canciones con ＋.'
+                    : 'Cola vacía: dale ▶ a algo.',
                 })}
               </div>
             ) : (
               <div className="mm-queue-list">
-                {queue.map((item) => (
+                {displayQueue.map((item) => (
                   <button
                     key={item.uuid}
                     className={
