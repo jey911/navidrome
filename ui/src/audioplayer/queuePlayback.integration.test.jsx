@@ -85,4 +85,25 @@ it('reorders and removes pending tracks without restarting playback, then plays 
   })
   await waitFor(() => expect(ref.current.state.name).toBe('Manual'))
   expect(ref.current.state.toggle).toBe(false)
+  const manualPlayId = ref.current.state.playId
+  ref.current.audio.currentTime = 33
+  const next = {
+    uuid: 'artist-next',
+    trackId: 'artist-next',
+    name: 'Continuación artista',
+    musicSrc: '/artist-next.mp3',
+  }
+  view.rerender(<InlinePlayer {...props} audioLists={[m, next]} />)
+  await waitFor(() =>
+    expect(ref.current.state.audioLists.map((item) => item.uuid)).toEqual([
+      'm',
+      'artist-next',
+    ]),
+  )
+  expect(ref.current.state.playId).toBe(manualPlayId)
+  expect(ref.current.audio.currentTime).toBe(33)
+  act(() => ref.current.audio.playNext())
+  await waitFor(() =>
+    expect(ref.current.state.name).toBe('Continuación artista'),
+  )
 })

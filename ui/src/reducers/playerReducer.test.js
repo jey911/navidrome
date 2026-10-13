@@ -11,6 +11,8 @@ import {
   playTracks,
   playNext,
   setTrack,
+  setArtistContinuation,
+  currentPlaying,
 } from '../actions'
 
 describe('playerReducer', () => {
@@ -427,4 +429,41 @@ it('removes only one pending duplicate and leaves current playback unchanged', (
   expect(state.queue).toHaveLength(3)
   expect(playerReducer(state, removeQueuedTrack('playing'))).toBe(state)
   expect(playerReducer(state, removeQueuedTrack('missing'))).toBe(state)
+})
+
+it('keeps artist continuation hidden and lets manual requests preempt it', () => {
+  const song = { id: 'a', artistId: 'artist' }
+  const current = { uuid: 'a', trackId: 'a', song }
+  const initial = {
+    manualOnly: true,
+    queue: [current],
+    current,
+    savedPlayIndex: 0,
+  }
+  const buffered = playerReducer(
+    initial,
+    setArtistContinuation('a', { id: 'next', artistId: 'artist' }),
+  )
+  expect(buffered.queue).toHaveLength(2)
+  expect(buffered.queue[1].manualQueued).toBe(false)
+  expect(buffered.queue[1].continuationOf).toBe('a')
+  const manual = playerReducer(
+    buffered,
+    addTracks({ manual: { id: 'manual', artistId: 'another' } }),
+  )
+  expect(manual.queue.map((item) => item.trackId)).toEqual(['a', 'manual'])
+  expect(
+    playerReducer(manual, setArtistContinuation('a', { id: 'late' })),
+  ).toBe(manual)
+  expect(
+    playerReducer(initial, setArtistContinuation('old', { id: 'stale' })),
+  ).toBe(initial)
+  const ended = playerReducer(
+    initial,
+    currentPlaying({ ...current, ended: true }),
+  )
+  expect(ended.current.uuid).toBe('a')
+  expect(
+    playerReducer(ended, setArtistContinuation('a', { id: 'next' })).queue,
+  ).toHaveLength(2)
 })

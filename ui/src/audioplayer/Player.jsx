@@ -53,6 +53,7 @@ import {
 import { sendNotification } from '../utils'
 import { fetchContinueTracks } from '../utils/autoDj'
 import { clearPreloadedStream, preloadStreamUrl } from '../utils/preloadNext'
+import useArtistContinuation from './useArtistContinuation'
 import { registerAudioInstance } from './audioBus'
 import subsonic from '../subsonic'
 import locale from './locale'
@@ -122,6 +123,14 @@ const Player = () => {
   // without re-triggering on every queue/position change
   const playerStateRef = useRef(playerState)
   playerStateRef.current = playerState
+
+  useArtistContinuation({
+    enabled: !!manualOnly && authenticated,
+    playerState,
+    dataProvider,
+    dispatch,
+    audioInstanceRef,
+  })
 
   currentTrackIdRef.current = currentTrackId
 
