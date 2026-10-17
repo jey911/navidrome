@@ -1,9 +1,3 @@
-export const PLAYER_ARTIST_CONTINUATION = 'PLAYER_ARTIST_CONTINUATION'
-export const setArtistContinuation = (anchor, song) => ({
-  type: PLAYER_ARTIST_CONTINUATION,
-  data: { anchor, song },
-})
-
 export const PLAYER_MANUAL_QUEUE = 'PLAYER_MANUAL_QUEUE'
 export const manualQueue = () => ({ type: PLAYER_MANUAL_QUEUE })
 

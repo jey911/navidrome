@@ -280,12 +280,10 @@ describe('server-side delete by song ID', () => {
   beforeEach(() => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: true,
-          json: async () => ({ deleted: ['s1'] }),
-        }),
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ deleted: ['s1'] }),
+      }),
     )
     localStorage.setItem('token', 'test-token')
   })
@@ -435,10 +433,18 @@ it('remote play and additions use the same manual FIFO queue as the library', as
     ]),
   )
   expect(state.manualOnly).toBe(true)
-  expect(
-    playerReducer(
-      state,
-      addTracks({ extra: { id: 'extra' } }, undefined, { automatic: true }),
-    ),
-  ).toBe(state)
+  // El buffer aleatorio del Auto-DJ se añade al final y queda oculto para la
+  // cola manual (no manualQueued).
+  const withBuffer = playerReducer(
+    state,
+    addTracks({ extra: { id: 'extra' } }, undefined, { automatic: true }),
+  )
+  expect(withBuffer.queue.map((x) => x.trackId)).toEqual([
+    'chosen',
+    'm1',
+    'm2',
+    'm3',
+    'extra',
+  ])
+  expect(withBuffer.queue.at(-1).manualQueued).toBe(false)
 })

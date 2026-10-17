@@ -51,9 +51,8 @@ import {
   runDedupedRemoteCommand,
 } from '../remote/remoteCommands'
 import { sendNotification } from '../utils'
-import { fetchContinueTracks } from '../utils/autoDj'
 import { clearPreloadedStream, preloadStreamUrl } from '../utils/preloadNext'
-import useArtistContinuation from './useArtistContinuation'
+import useAutoDjBuffer from './useAutoDjBuffer'
 import { registerAudioInstance } from './audioBus'
 import subsonic from '../subsonic'
 import locale from './locale'
@@ -76,7 +75,6 @@ const Player = () => {
   const stoppedRef = useRef(false)
   const [audioInstance, setAudioInstance] = useState(null)
   const audioInstanceRef = useRef(null)
-  const autodjFetchingRef = useRef(false)
   // Reintentos ante error de red en el tema actual (cortes por buffer).
   const errorRetryRef = useRef({ uuid: null, count: 0 })
   // Control remoto casa: el móvil como mando, el audio sigue aquí.
@@ -96,17 +94,16 @@ const Player = () => {
   const remoteAck = useRef({})
   const dataProviderRef = useRef(dataProvider)
   dataProviderRef.current = dataProvider
-  // Auto-DJ casa (default ON, persiste en settings): al acabarse la cola,
-  // seguir con temas aleatorios en vez de detenerse.
+  // Auto-DJ casa (default ON, persiste en settings): mantiene música por
+  // delante del tema actual. En móvil/PWA y con el mando activo (modo cola
+  // manual) son aleatorios de TODO el catálogo y las peticiones manuales
+  // siempre van primero; en escritorio sin mando sigue el contexto.
   const isDesktop = useMediaQuery('(min-width:769px)', { noSsr: true })
   const manualOnly = !isDesktop || playerState.manualOnly
-  const autodj =
-    useSelector((state) => state.settings.autodj !== false) && !manualOnly
+  const autodj = useSelector((state) => state.settings.autodj !== false)
   useEffect(() => {
     if (!isDesktop) dispatch(manualQueue())
   }, [isDesktop, dispatch])
-  const autodjRef = useRef(autodj)
-  autodjRef.current = autodj
   // La librería del reproductor decide si dibuja la vista de móvil con su
   // propio `mobileMediaQuery` (por defecto `max-width:768px and orientation:
   // portrait`). Ese defecto hace que al girar el iPhone en horizontal salte a
@@ -124,10 +121,10 @@ const Player = () => {
   const playerStateRef = useRef(playerState)
   playerStateRef.current = playerState
 
-  useArtistContinuation({
-    enabled: !!manualOnly && authenticated,
+  const { handleEnded: handleAutoDjEnded } = useAutoDjBuffer({
+    enabled: autodj,
+    manualOnly,
     playerState,
-    dataProvider,
     dispatch,
     audioInstanceRef,
   })
@@ -359,61 +356,8 @@ const Player = () => {
     }
   }, [playerState.queue, playerState.savedPlayIndex])
 
-  // Auto-DJ: mantener siempre temas por delante. Con la cola precargada,
-  // el avance natural del reproductor (y el botón siguiente) funcionan
-  // también al darle play a un tema suelto.
-  // Laptop sin shuffle (🔀): MISMO género (y si no hay, mismo artista).
-  // Mando remoto activo (📱 emparejado): MISMO artista primero y al
-  // agotarse MISMO género (la cola manual siempre va antes: el top-up solo
-  // rellena cuando quedan <=2 temas por delante). Con shuffle: aleatorios.
-  const shuffleMode = playerState.mode === 'shufflePlay'
-  // Se desestructura fuera del efecto porque `react-hooks/exhaustive-deps`
-  // exige en la lista cada valor usado, no el objeto del que salen. Antes se
-  // leía `playerState.x` y eslint pedía el `playerState` entero, que como
-  // dependencia lo reejecutaría en cada render.
-  const { queue: autodjQueue, current: autodjCurrent } = playerState
-  useEffect(() => {
-    if (!autodj || !autodjQueue.length) return
-    if (autodjCurrent?.isRadio) return
-    const idx = autodjQueue.findIndex(
-      (item) => item.uuid === autodjCurrent?.uuid,
-    )
-    const remaining =
-      idx >= 0 ? autodjQueue.length - idx - 1 : autodjQueue.length
-    if (remaining > 2 || autodjFetchingRef.current) return
-    autodjFetchingRef.current = true
-    const anchor = autodjQueue[0]?.uuid
-    const exclude = autodjQueue.map((item) => item.trackId)
-    const song = autodjCurrent?.song
-    const preferArtist = remoteRef.current.enabled
-    fetchContinueTracks(
-      song,
-      { shuffle: shuffleMode, preferArtist },
-      exclude,
-      5,
-    )
-      .then(({ songs: songData }) => {
-        autodjFetchingRef.current = false
-        if (
-          autodjRef.current &&
-          playerStateRef.current.queue[0]?.uuid === anchor &&
-          Object.keys(songData).length > 0
-        ) {
-          dispatch(addTracks(songData, undefined, { automatic: true }))
-          setTimeout(() => {
-            const audio = audioInstanceRef.current
-            if (
-              audio?.ended &&
-              playerStateRef.current.queue[0]?.uuid === anchor
-            )
-              audio.playNext?.()
-          }, 600)
-        }
-      })
-      .catch(() => {
-        autodjFetchingRef.current = false
-      })
-  }, [autodj, shuffleMode, autodjQueue, autodjCurrent, dispatch])
+  // Auto-DJ: el buffer de temas por delante lo mantiene useAutoDjBuffer,
+  // que también reanuda si el tema terminó antes de que llegara la red.
 
   const visible = authenticated && playerState.queue.length > 0
   const isRadio = playerState.current?.isRadio || false
@@ -710,47 +654,10 @@ const Player = () => {
         .catch((e) => console.log('Keepalive error:', e))
       // Red de seguridad Auto-DJ: si terminó el último tema de la cola
       // (p. ej. "siguiente" antes de que el buffer se precargue), trae
-      // más del MISMO contexto (mando: artista=>género; laptop: género=>
-      // artista; o aleatorios con 🔀) y avanza a mano para no detenerse.
-      if (autodjRef.current && !info.isRadio) {
-        const st = playerStateRef.current
-        const idx = st.queue.findIndex((item) => item.uuid === info.uuid)
-        const remaining = idx >= 0 ? st.queue.length - idx - 1 : st.queue.length
-        if (idx >= 0 && remaining <= 0 && !autodjFetchingRef.current) {
-          autodjFetchingRef.current = true
-          const anchor = st.queue[0]?.uuid
-          const exclude = st.queue.map((item) => item.trackId)
-          const endedSong = info.song || st.current?.song
-          const shuffle = st.mode === 'shufflePlay'
-          const preferArtist = remoteRef.current.enabled
-          fetchContinueTracks(endedSong, { shuffle, preferArtist }, exclude, 3)
-            .then(({ songs: songData }) => {
-              autodjFetchingRef.current = false
-              if (
-                autodjRef.current &&
-                playerStateRef.current.queue[0]?.uuid === anchor &&
-                Object.keys(songData).length > 0
-              ) {
-                dispatch(addTracks(songData, undefined, { automatic: true }))
-                setTimeout(() => {
-                  const active = audioInstanceRef.current
-                  // A manual request or another track may have started while
-                  // the async continuation was being fetched.
-                  if (
-                    active?.ended &&
-                    playerStateRef.current.queue[0]?.uuid === anchor
-                  )
-                    active.playNext?.()
-                }, 600)
-              }
-            })
-            .catch(() => {
-              autodjFetchingRef.current = false
-            })
-        }
-      }
+      // más música por delante y avanza a mano para no detenerse.
+      handleAutoDjEnded(info)
     },
-    [dispatch, dataProvider, currentTrackId],
+    [dispatch, dataProvider, currentTrackId, handleAutoDjEnded],
   )
 
   const onCoverClick = useCallback((mode, audioLists, audioInfo) => {

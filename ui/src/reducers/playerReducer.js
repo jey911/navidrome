@@ -4,7 +4,6 @@ import { decisionService } from '../transcode'
 import {
   PLAYER_ADD_TRACKS,
   PLAYER_MANUAL_QUEUE,
-  PLAYER_ARTIST_CONTINUATION,
   PLAYER_CLEAR_QUEUE,
   PLAYER_CURRENT,
   PLAYER_PLAY_NEXT,
@@ -143,8 +142,9 @@ const reduceSetTrack = (state, { data }) => {
 
 // Manual requests are FIFO immediately after the current song, ahead of
 // album/search context and Auto-DJ. Never mutate the previous Redux queue.
+// Automatic picks (Auto-DJ buffer) always append at the end and stay hidden
+// from the manual queue indicators.
 const reduceAddTracks = (state, { data, automatic = false }) => {
-  if (automatic && state.manualOnly) return state
   const tracks = Object.values(data).map((song) => ({
     ...mapToAudioLists(song),
     manualQueued: !automatic,
@@ -161,7 +161,7 @@ const reduceAddTracks = (state, { data, automatic = false }) => {
     queue: [
       ...state.queue.slice(0, insertAt),
       ...tracks,
-      ...state.queue.slice(insertAt).filter((item) => !item.continuationOf),
+      ...state.queue.slice(insertAt),
     ],
     clear: true,
   }
@@ -237,31 +237,6 @@ const reduceRemoveQueuedTrack = (state, { data: { queueId } }) => {
   }
 }
 
-// Hidden buffer is anchored to the current song and can never outrank a
-// manual request, including one that arrived while the lookup was in flight.
-const reduceArtistContinuation = (state, { data: { anchor, song } }) => {
-  if (
-    !state.manualOnly ||
-    !song?.id ||
-    song.missing ||
-    state.current?.uuid !== anchor ||
-    state.queue.some((item) => item.manualQueued && item.uuid !== anchor) ||
-    state.queue.some((item) => item.continuationOf === anchor)
-  )
-    return state
-  const current = state.queue.find((item) => item.uuid === anchor)
-  if (!current) return state
-  return {
-    ...state,
-    queue: [
-      current,
-      { ...mapToAudioLists(song), continuationOf: anchor, manualQueued: false },
-    ],
-    savedPlayIndex: 0,
-    ...(state.playIndex != null ? { playIndex: 0 } : {}),
-  }
-}
-
 const reduceSetVolume = (state, { data: { volume } }) => {
   return {
     ...state,
@@ -289,12 +264,7 @@ const reduceSyncQueue = (state, { data: { audioInfo, audioLists } }) => {
 
 const reduceCurrent = (state, { data }) => {
   const current = data.ended && !state.manualOnly ? {} : data
-  const queue = state.queue.filter(
-    (item) =>
-      !item.continuationOf ||
-      item.uuid === current.uuid ||
-      item.continuationOf === current.uuid,
-  )
+  const queue = state.queue
   const savedPlayIndex = queue.findIndex((item) => item.uuid === current.uuid)
   // When a track selection is pending (playIndex is set), keep it alive
   // until the music player confirms it actually switched to the requested
@@ -326,8 +296,6 @@ const reduceMode = (state, { data: { mode } }) => {
 export const playerReducer = (previousState = initialState, payload) => {
   const { type } = payload
   switch (type) {
-    case PLAYER_ARTIST_CONTINUATION:
-      return reduceArtistContinuation(previousState, payload)
     case PLAYER_MANUAL_QUEUE: {
       if (previousState.manualOnly) return previousState
       const index = previousState.queue.findIndex(

@@ -111,7 +111,7 @@ const PlayerToolbar = ({ id, isRadio, remoteEnabled, onToggleRemote }) => {
       onClick={() => dispatch(setAutodjState(!autodj))}
       disabled={isRadio}
       title={translate('player.autodj', {
-        _: 'Auto-DJ: al terminar sigue con el mismo género/artista (🔀 para aleatorio)',
+        _: 'Auto-DJ: al terminar sigue con música por delante (cola manual primero; aleatoria en móvil y mando)',
       })}
       data-testid="autodj-button"
       className={buttonClass}

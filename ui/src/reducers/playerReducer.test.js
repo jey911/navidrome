@@ -11,7 +11,6 @@ import {
   playTracks,
   playNext,
   setTrack,
-  setArtistContinuation,
   currentPlaying,
 } from '../actions'
 
@@ -369,7 +368,7 @@ it('consumes the manual priority marker when that song starts', () => {
   expect(state.queue[0].manualQueued).toBe(true)
 })
 
-it('mobile manual mode removes automatic fill while retaining current playback and explicit requests', () => {
+it('mobile manual mode keeps current playback and explicit requests, and appends the random radio buffer', () => {
   const state = {
     queue: [
       { uuid: 'now', trackId: 'now' },
@@ -384,12 +383,19 @@ it('mobile manual mode removes automatic fill while retaining current playback a
   expect(result.manualOnly).toBe(true)
   expect(result.autoPlay).toBe(false)
   expect(result.current).toBe(state.current)
-  expect(
-    playerReducer(
-      result,
-      addTracks({ dj2: { id: 'dj2' } }, undefined, { automatic: true }),
-    ),
-  ).toBe(result)
+  // El buffer aleatorio sí se añade en modo manual, pero oculto (no manual).
+  const withBuffer = playerReducer(
+    result,
+    addTracks({ dj2: { id: 'dj2' } }, undefined, { automatic: true }),
+  )
+  expect(withBuffer.queue.map((x) => x.trackId)).toEqual(['now', 'm', 'dj2'])
+  expect(withBuffer.queue[2].manualQueued).toBe(false)
+  // Una petición manual nueva entra antes que el buffer.
+  const manual = playerReducer(
+    withBuffer,
+    addTracks({ m2: { id: 'm2', title: 'Petición' } }),
+  )
+  expect(manual.queue.map((x) => x.trackId)).toEqual(['now', 'm', 'm2', 'dj2'])
   const selected = playerReducer(result, setTrack({ id: 'selected' }))
   expect(selected.queue.map((x) => x.trackId)).toEqual(['selected', 'm'])
   const context = playerReducer(
@@ -431,9 +437,8 @@ it('removes only one pending duplicate and leaves current playback unchanged', (
   expect(playerReducer(state, removeQueuedTrack('missing'))).toBe(state)
 })
 
-it('keeps artist continuation hidden and lets manual requests preempt it', () => {
-  const song = { id: 'a', artistId: 'artist' }
-  const current = { uuid: 'a', trackId: 'a', song }
+it('keeps the random radio buffer hidden and behind manual requests', () => {
+  const current = { uuid: 'a', trackId: 'a', song: { id: 'a' } }
   const initial = {
     manualOnly: true,
     queue: [current],
@@ -442,28 +447,25 @@ it('keeps artist continuation hidden and lets manual requests preempt it', () =>
   }
   const buffered = playerReducer(
     initial,
-    setArtistContinuation('a', { id: 'next', artistId: 'artist' }),
+    addTracks({ next: { id: 'next' } }, undefined, { automatic: true }),
   )
   expect(buffered.queue).toHaveLength(2)
   expect(buffered.queue[1].manualQueued).toBe(false)
-  expect(buffered.queue[1].continuationOf).toBe('a')
   const manual = playerReducer(
     buffered,
-    addTracks({ manual: { id: 'manual', artistId: 'another' } }),
+    addTracks({ manual: { id: 'manual' } }),
   )
-  expect(manual.queue.map((item) => item.trackId)).toEqual(['a', 'manual'])
-  expect(
-    playerReducer(manual, setArtistContinuation('a', { id: 'late' })),
-  ).toBe(manual)
-  expect(
-    playerReducer(initial, setArtistContinuation('old', { id: 'stale' })),
-  ).toBe(initial)
+  expect(manual.queue.map((item) => item.trackId)).toEqual([
+    'a',
+    'manual',
+    'next',
+  ])
+  // Al terminar, el tema actual se conserva (el móvil lo necesita para
+  // reanudar) y el buffer no se descarta.
   const ended = playerReducer(
     initial,
     currentPlaying({ ...current, ended: true }),
   )
   expect(ended.current.uuid).toBe('a')
-  expect(
-    playerReducer(ended, setArtistContinuation('a', { id: 'next' })).queue,
-  ).toHaveLength(2)
+  expect(ended.queue.map((item) => item.trackId)).toEqual(['a'])
 })
