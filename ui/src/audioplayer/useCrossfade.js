@@ -134,6 +134,22 @@ export default function useCrossfade({
     return context
   }, [])
 
+  // iOS solo permite crear/reanudar el AudioContext dentro de un gesto. Se
+  // prepara en el primer toque de la app (antes de que el usuario pulse play),
+  // para que el clon pueda atenuarse cuando llegue el final del tema.
+  useEffect(() => {
+    if (!enabled) return undefined
+    const unlock = () => {
+      ensureContext()
+    }
+    window.addEventListener('pointerdown', unlock, { capture: true })
+    window.addEventListener('touchstart', unlock, { capture: true })
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true)
+      window.removeEventListener('touchstart', unlock, true)
+    }
+  }, [enabled, ensureContext])
+
   // El contexto se crea en el primer play (dentro/reciente a un gesto del
   // usuario). En iOS esto es importante para que luego pueda sonar el clon.
   const onPlay = useCallback(
