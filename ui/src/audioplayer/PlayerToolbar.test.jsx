@@ -4,7 +4,11 @@ import { useMediaQuery } from '@material-ui/core'
 import { useGetOne, useTranslate } from 'react-admin'
 import { useDispatch, useSelector } from 'react-redux'
 import { useToggleLove } from '../common'
-import { openSaveQueueDialog, setAutodjState } from '../actions'
+import {
+  openSaveQueueDialog,
+  setAutodjState,
+  setCrossfadeState,
+} from '../actions'
 import PlayerToolbar from './PlayerToolbar'
 
 // Mock dependencies
@@ -41,6 +45,10 @@ vi.mock('../actions', () => ({
     type: 'SET_AUTODJ_STATE',
     data: enabled,
   })),
+  setCrossfadeState: vi.fn((enabled) => ({
+    type: 'SET_CROSSFADE_STATE',
+    data: enabled,
+  })),
 }))
 
 vi.mock('react-hotkeys', () => ({
@@ -56,7 +64,9 @@ describe('<PlayerToolbar />', () => {
     vi.clearAllMocks()
     useGetOne.mockReturnValue({ data: mockSongData, loading: false })
     useTranslate.mockReturnValue((key, opts) => (opts && opts._) || key)
-    useSelector.mockImplementation((sel) => sel({ settings: { autodj: true } }))
+    useSelector.mockImplementation((sel) =>
+      sel({ settings: { autodj: true, crossfade: true } }),
+    )
     useToggleLove.mockReturnValue([mockToggleLove, false])
     useDispatch.mockReturnValue(mockDispatch)
     openSaveQueueDialog.mockReturnValue({ type: 'OPEN_SAVE_QUEUE_DIALOG' })
@@ -80,6 +90,7 @@ describe('<PlayerToolbar />', () => {
       expect(screen.getByTestId('save-queue-button')).toBeInTheDocument()
       expect(screen.getByTestId('love-button')).toBeInTheDocument()
       expect(screen.getByTestId('autodj-button')).toBeInTheDocument()
+      expect(screen.getByTestId('crossfade-button')).toBeInTheDocument()
 
       // Verify desktop classes are applied
       expect(listItems[0].className).toContain('toolbar')
@@ -131,6 +142,24 @@ describe('<PlayerToolbar />', () => {
       expect(screen.getByTestId('autodj-button')).toBeDisabled()
     })
 
+    it('toggles crossfade off when the crossfade button is clicked while on', () => {
+      render(<PlayerToolbar id="song-1" />)
+
+      fireEvent.click(screen.getByTestId('crossfade-button'))
+
+      expect(setCrossfadeState).toHaveBeenCalledWith(false)
+      expect(mockDispatch).toHaveBeenCalledWith({
+        type: 'SET_CROSSFADE_STATE',
+        data: false,
+      })
+    })
+
+    it('disables crossfade button when isRadio is true', () => {
+      render(<PlayerToolbar id="song-1" isRadio={true} />)
+
+      expect(screen.getByTestId('crossfade-button')).toBeDisabled()
+    })
+
     it('calls onToggleRemote when remote button is clicked', () => {
       const onToggleRemote = vi.fn()
       render(
@@ -162,12 +191,13 @@ describe('<PlayerToolbar />', () => {
 
       // Each button should be in its own list item
       const listItems = screen.getAllByRole('listitem')
-      expect(listItems).toHaveLength(4)
+      expect(listItems).toHaveLength(5)
 
       // Verify all buttons are rendered
       expect(screen.getByTestId('save-queue-button')).toBeInTheDocument()
       expect(screen.getByTestId('love-button')).toBeInTheDocument()
       expect(screen.getByTestId('autodj-button')).toBeInTheDocument()
+      expect(screen.getByTestId('crossfade-button')).toBeInTheDocument()
       expect(screen.getByTestId('remote-button')).toBeInTheDocument()
 
       // Verify mobile classes are applied

@@ -32,6 +32,7 @@ import {
   clearQueue,
   currentPlaying,
   refreshQueue,
+  setAutodjState,
   setPlayMode,
   setTranscodingProfile,
   setVolume,
@@ -53,6 +54,8 @@ import {
 import { sendNotification } from '../utils'
 import { clearPreloadedStream, preloadStreamUrl } from '../utils/preloadNext'
 import useAutoDjBuffer from './useAutoDjBuffer'
+import useCrossfade from './useCrossfade'
+import { shouldBootstrapPwaAutoDj } from './pwaAutoDj'
 import { registerAudioInstance } from './audioBus'
 import subsonic from '../subsonic'
 import locale from './locale'
@@ -77,6 +80,8 @@ const Player = () => {
   const audioInstanceRef = useRef(null)
   // Reintentos ante error de red en el tema actual (cortes por buffer).
   const errorRetryRef = useRef({ uuid: null, count: 0 })
+  // En la PWA el Auto-DJ se enciende solo en el primer tema de la sesion.
+  const pwaAutoDjBootstrappedRef = useRef(false)
   // Control remoto casa: el móvil como mando, el audio sigue aquí.
   const [remote, setRemote] = useState({
     enabled: false,
@@ -101,6 +106,9 @@ const Player = () => {
   const isDesktop = useMediaQuery('(min-width:769px)', { noSsr: true })
   const manualOnly = !isDesktop || playerState.manualOnly
   const autodj = useSelector((state) => state.settings.autodj !== false)
+  const crossfadeEnabled = useSelector(
+    (state) => state.settings.crossfade !== false,
+  )
   useEffect(() => {
     if (!isDesktop) dispatch(manualQueue())
   }, [isDesktop, dispatch])
@@ -437,11 +445,51 @@ const Player = () => {
     }
   }, [playerState, audioInstance])
 
+  // La librería recibe este mismo modo; el crossfade debe elegir exactamente
+  // el siguiente tema que elegiría ella al terminar.
+  const effectivePlayMode = useMemo(() => {
+    const current = playerState.current || {}
+    if (manualOnly) return 'order'
+    const currentIndex = playerState.queue.findIndex(
+      (item) => item.uuid === current.uuid,
+    )
+    const hasManualAhead = playerState.queue
+      .slice(Math.max(0, currentIndex + 1))
+      .some((item) => item.manualQueued)
+    return hasManualAhead ? 'order' : playerState.mode
+  }, [manualOnly, playerState])
+
+  // El clon del final debe sonar al mismo nivel que el tema actual, incluido
+  // ReplayGain si está activo.
+  const currentSongForGain = playerState.current?.song
+  const replayGainFactor = useMemo(
+    () =>
+      config.enableReplayGain
+        ? calculateGain(gainInfo, currentSongForGain || {})
+        : 1,
+    [gainInfo, currentSongForGain],
+  )
+
+  const {
+    onPlay: onCrossfadePlay,
+    onPause: onCrossfadePause,
+    onEnded: onCrossfadeEnded,
+    onError: onCrossfadeError,
+    onProgress: onCrossfadeProgress,
+    stop: onCrossfadeStop,
+  } = useCrossfade({
+    enabled: crossfadeEnabled,
+    playerState,
+    playMode: effectivePlayMode,
+    audioInstanceRef,
+    gainFactor: replayGainFactor,
+  })
+
   const defaultOptions = useMemo(
     () => ({
       theme: playerTheme,
       bounds: 'body',
-      playMode: playerState.mode,
+      playMode: effectivePlayMode,
       mode: isDesktop ? 'full' : 'mini',
       loadAudioErrorPlayNext: false,
       autoPlayInitLoadPlayList: true,
@@ -474,7 +522,7 @@ const Player = () => {
       locale: locale(translate),
       sortableOptions: { delay: 200, delayOnTouchOnly: true },
     }),
-    [gainInfo, isDesktop, playerTheme, translate, playerState.mode],
+    [gainInfo, isDesktop, playerTheme, translate, effectivePlayMode],
   )
 
   const options = useMemo(() => {
@@ -483,20 +531,7 @@ const Player = () => {
       ...defaultOptions,
       audioLists: playerState.queue.map((item) => item),
       // Shuffle must not skip manually queued requests.
-      playMode: manualOnly
-        ? 'order'
-        : playerState.queue
-              .slice(
-                Math.max(
-                  0,
-                  playerState.queue.findIndex(
-                    (item) => item.uuid === current.uuid,
-                  ) + 1,
-                ),
-              )
-              .some((item) => item.manualQueued)
-          ? 'order'
-          : playerState.mode,
+      playMode: effectivePlayMode,
       playIndex: playerState.playIndex,
       autoPlay:
         playerState.queue.length > 0 &&
@@ -516,7 +551,7 @@ const Player = () => {
     }
   }, [
     playerState,
-    manualOnly,
+    effectivePlayMode,
     defaultOptions,
     isMobilePlayer,
     remote.enabled,
@@ -537,8 +572,9 @@ const Player = () => {
         lastPositionMsRef.current = Math.floor(info.currentTime * 1000)
       }
       publishRemote()
+      onCrossfadeProgress(info)
     },
-    [publishRemote],
+    [publishRemote, onCrossfadeProgress],
   )
 
   const onAudioVolumeChange = useCallback(
@@ -552,6 +588,21 @@ const Player = () => {
 
   const onAudioPlay = useCallback(
     (info) => {
+      onCrossfadePlay(info)
+      // PWA/movil: el modo DJ debe quedar activo al empezar a sonar un tema.
+      // Se hace una sola vez por sesion para que el boton siga pudiendo
+      // apagarlo; si el ajuste guardado estaba en OFF, se enciende igual.
+      if (
+        shouldBootstrapPwaAutoDj({
+          bootstrapped: pwaAutoDjBootstrappedRef.current,
+          isDesktop,
+          isMobilePlayer,
+          isRadio: info.isRadio,
+        })
+      ) {
+        pwaAutoDjBootstrappedRef.current = true
+        if (!autodj) dispatch(setAutodjState(true))
+      }
       if (context && context.state !== 'running') {
         context.resume()
       }
@@ -601,7 +652,17 @@ const Player = () => {
         )
       }
     },
-    [context, dispatch, showNotifications, currentTrackId, publishRemote],
+    [
+      context,
+      dispatch,
+      showNotifications,
+      currentTrackId,
+      publishRemote,
+      onCrossfadePlay,
+      isDesktop,
+      isMobilePlayer,
+      autodj,
+    ],
   )
 
   const onAudioPlayTrackChange = useCallback(() => {
@@ -619,6 +680,7 @@ const Player = () => {
 
   const onAudioPause = useCallback(
     (info) => {
+      onCrossfadePause()
       dispatch(currentPlaying(info))
       if (!info.isRadio && currentTrackId) {
         const posMs = Math.floor(info.currentTime * 1000)
@@ -636,11 +698,12 @@ const Player = () => {
         true,
       )
     },
-    [dispatch, currentTrackId, publishRemote],
+    [dispatch, currentTrackId, publishRemote, onCrossfadePause],
   )
 
   const onAudioEnded = useCallback(
     (currentPlayId, audioLists, info) => {
+      onCrossfadeEnded()
       if (currentTrackId && !info.isRadio) {
         const posMs = Math.floor((info.duration || 0) * 1000)
         subsonic.reportPlayback(currentTrackId, posMs, 'stopped')
@@ -657,7 +720,13 @@ const Player = () => {
       // más música por delante y avanza a mano para no detenerse.
       handleAutoDjEnded(info)
     },
-    [dispatch, dataProvider, currentTrackId, handleAutoDjEnded],
+    [
+      dispatch,
+      dataProvider,
+      currentTrackId,
+      handleAutoDjEnded,
+      onCrossfadeEnded,
+    ],
   )
 
   const onCoverClick = useCallback((mode, audioLists, audioInfo) => {
@@ -668,6 +737,7 @@ const Player = () => {
 
   const onAudioError = useCallback(
     (error, currentPlayId, audioLists, audioInfo) => {
+      onCrossfadeError()
       // Invalidate all cached decisions — token may be stale
       decisionService.invalidateAll()
 
@@ -720,11 +790,12 @@ const Player = () => {
         el.playNext?.()
       }
     },
-    [playerState.queue],
+    [playerState.queue, onCrossfadeError],
   )
 
   const onBeforeDestroy = useCallback(() => {
     return new Promise((resolve, reject) => {
+      onCrossfadeStop()
       if (currentTrackId && !playerStateRef.current?.current?.isRadio) {
         subsonic.reportPlayback(
           currentTrackId,
@@ -737,7 +808,7 @@ const Player = () => {
       dispatch(clearQueue())
       reject()
     })
-  }, [dispatch, currentTrackId])
+  }, [dispatch, currentTrackId, onCrossfadeStop])
 
   if (!visible) {
     document.title = 'Navidrome'

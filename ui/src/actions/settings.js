@@ -2,6 +2,7 @@ export const SET_NOTIFICATIONS_STATE = 'SET_NOTIFICATIONS_STATE'
 export const SET_TOGGLEABLE_FIELDS = 'SET_TOGGLEABLE_FIELDS'
 export const SET_OMITTED_FIELDS = 'SET_OMITTED_FIELDS'
 export const SET_AUTODJ_STATE = 'SET_AUTODJ_STATE'
+export const SET_CROSSFADE_STATE = 'SET_CROSSFADE_STATE'
 
 export const setNotificationsState = (enabled) => ({
   type: SET_NOTIFICATIONS_STATE,
@@ -10,6 +11,11 @@ export const setNotificationsState = (enabled) => ({
 
 export const setAutodjState = (enabled) => ({
   type: SET_AUTODJ_STATE,
+  data: enabled,
+})
+
+export const setCrossfadeState = (enabled) => ({
+  type: SET_CROSSFADE_STATE,
   data: enabled,
 })
 

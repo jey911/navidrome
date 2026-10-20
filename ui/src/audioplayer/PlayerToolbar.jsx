@@ -6,9 +6,14 @@ import IconButton from '@material-ui/core/IconButton'
 import { useMediaQuery } from '@material-ui/core'
 import RadioIcon from '@material-ui/icons/Radio'
 import PhonelinkIcon from '@material-ui/icons/Phonelink'
+import SwapHorizIcon from '@material-ui/icons/SwapHoriz'
 import { RiSaveLine } from 'react-icons/ri'
 import { LoveButton, useToggleLove } from '../common'
-import { openSaveQueueDialog, setAutodjState } from '../actions'
+import {
+  openSaveQueueDialog,
+  setAutodjState,
+  setCrossfadeState,
+} from '../actions'
 import { keyMap } from '../hotkeys'
 import { makeStyles } from '@material-ui/core/styles'
 
@@ -65,6 +70,7 @@ const PlayerToolbar = ({ id, isRadio, remoteEnabled, onToggleRemote }) => {
   // Auto-DJ casa: ON por defecto (settings.autodj !== false cubre estados
   // viejos guardados). Al terminar un tema suelto, sigue con aleatorios.
   const autodj = useSelector((state) => state.settings.autodj !== false)
+  const crossfade = useSelector((state) => state.settings.crossfade !== false)
   const isDesktop = useMediaQuery('(min-width:769px)')
   const classes = useStyles()
 
@@ -121,6 +127,22 @@ const PlayerToolbar = ({ id, isRadio, remoteEnabled, onToggleRemote }) => {
     </IconButton>
   )
 
+  const crossfadeButton = (
+    <IconButton
+      size={isDesktop ? 'small' : undefined}
+      onClick={() => dispatch(setCrossfadeState(!crossfade))}
+      disabled={isRadio}
+      title={translate('player.crossfade', {
+        _: 'Crossfade: el siguiente tema entra antes de que termine el actual',
+      })}
+      data-testid="crossfade-button"
+      className={buttonClass}
+      style={crossfade ? { color: '#4ade80' } : undefined}
+    >
+      <SwapHorizIcon className={!isDesktop ? classes.mobileIcon : undefined} />
+    </IconButton>
+  )
+
   // Mando móvil casa: el teléfono controla este reproductor (el audio
   // sigue sonando aquí). Al activar muestra el código de 4 dígitos.
   const remoteButton = (
@@ -147,6 +169,7 @@ const PlayerToolbar = ({ id, isRadio, remoteEnabled, onToggleRemote }) => {
           {saveQueueButton}
           {loveButton}
           {autodjButton}
+          {crossfadeButton}
           {remoteButton}
         </li>
       ) : (
@@ -154,6 +177,7 @@ const PlayerToolbar = ({ id, isRadio, remoteEnabled, onToggleRemote }) => {
           <li className={`${listItemClass} item`}>{saveQueueButton}</li>
           <li className={`${listItemClass} item`}>{loveButton}</li>
           <li className={`${listItemClass} item`}>{autodjButton}</li>
+          <li className={`${listItemClass} item`}>{crossfadeButton}</li>
           <li className={`${listItemClass} item`}>{remoteButton}</li>
         </>
       )}

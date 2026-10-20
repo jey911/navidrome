@@ -3,6 +3,7 @@ import {
   SET_OMITTED_FIELDS,
   SET_TOGGLEABLE_FIELDS,
   SET_AUTODJ_STATE,
+  SET_CROSSFADE_STATE,
 } from '../actions'
 
 const initialState = {
@@ -12,6 +13,9 @@ const initialState = {
   // Auto-DJ casa: al terminar un tema suelto, seguir con aleatorios.
   // `!== false` en los selectores lo mantiene ON en estados viejos guardados.
   autodj: true,
+  // Crossfade de 4 s: el siguiente tema entra antes de que termine el actual.
+  // Tambien `!== false` para que estados viejos queden con el efecto activo.
+  crossfade: true,
 }
 
 export const settingsReducer = (previousState = initialState, payload) => {
@@ -26,6 +30,11 @@ export const settingsReducer = (previousState = initialState, payload) => {
       return {
         ...previousState,
         autodj: data,
+      }
+    case SET_CROSSFADE_STATE:
+      return {
+        ...previousState,
+        crossfade: data,
       }
     case SET_TOGGLEABLE_FIELDS:
       return {
