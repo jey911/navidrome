@@ -70,7 +70,7 @@ it('aplica la lista nueva aunque la URL del tema actual tarde en resolver', asyn
   // El append del Auto-DJ llega mientras la URL del tema actual se re-resuelve.
   // Sin el parche, `initPlayInfo` espera a esa promesa y `audioLists` sigue en
   // [a]; con el parche la lista ya tiene 2 y playByIndex(1) devuelve true.
-  rerender(<MusicPlayer {...playerProps([a, track('b', '/stream/b')], onInstance)} />)
+  rerender(<MusicPlayer {...playerProps([a, track('b', '/stream/b'), track('c', '/stream/c')], onInstance)} />)
 
   expect(audio.playByIndex(1)).toBe(true)
   await waitFor(() => expect(audio.src).toContain('/stream/b'))
@@ -81,6 +81,44 @@ it('aplica la lista nueva aunque la URL del tema actual tarde en resolver', asyn
     await Promise.resolve()
   })
   expect(audio.src).toContain('/stream/b')
+})
+
+it('no revierte la lista si la URL inicial resuelve después del append', async () => {
+  let calls = 0
+  let releaseMount
+  const slowA = () => {
+    calls += 1
+    if (calls === 1) {
+      return new Promise((resolve) => {
+        releaseMount = resolve
+      })
+    }
+    return Promise.resolve('/stream/a')
+  }
+  const a = track('a', slowA)
+  let audio
+  const onInstance = (instance) => {
+    audio = instance
+  }
+
+  const { rerender } = render(<MusicPlayer {...playerProps([a], onInstance)} />)
+  // El append del Auto-DJ llega mientras la promesa del montaje sigue pendiente.
+  rerender(<MusicPlayer {...playerProps([a, track('b', '/stream/b'), track('c', '/stream/c')], onInstance)} />)
+  await waitFor(() => expect(audio?.src).toContain('/stream/a'))
+
+  expect(audio.playByIndex(1)).toBe(true)
+  await waitFor(() => expect(audio.src).toContain('/stream/b'))
+
+  // La promesa vieja del montaje no debe devolver la lista a [a] ni el src a A.
+  await act(async () => {
+    releaseMount('/stream/a')
+    await Promise.resolve()
+  })
+  expect(audio.src).toContain('/stream/b')
+
+  // La lista sigue teniendo 3 pistas: se puede saltar a C, no solo a A.
+  expect(audio.playByIndex(2)).toBe(true)
+  await waitFor(() => expect(audio.src).toContain('/stream/c'))
 })
 
 it('no repite el tema actual si el índice pedido no existe', async () => {

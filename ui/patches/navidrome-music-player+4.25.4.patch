@@ -1,5 +1,5 @@
 diff --git a/node_modules/navidrome-music-player/es/index.js b/node_modules/navidrome-music-player/es/index.js
-index dd68040..c9d1ca6 100644
+index dd68040..2d9c836 100644
 --- a/node_modules/navidrome-music-player/es/index.js
 +++ b/node_modules/navidrome-music-player/es/index.js
 @@ -1201,10 +1201,22 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
@@ -55,8 +55,32 @@ index dd68040..c9d1ca6 100644
      });
      _defineProperty(_this, "getEnhanceAudio", function () {
        var _this3 = _this,
+@@ -2110,10 +2129,20 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
+         var lastPlayStatus = remember ? this.getLastPlayStatus() : {};
+         switch (_typeof(playInfo.musicSrc)) {
+           case 'function':
+-            playInfo.musicSrc().then(function (val) {
+-              _this8.setState(_objectSpread(_objectSpread({}, playInfo), {}, {
++            // FORK NAVIPLAY: fijar la lista de inmediato y no reescribirla
++            // cuando resuelva la URL. Si el append del Auto-DJ llega mientras
++            // la promesa esta pendiente, el setState tardio devolvia la lista
++            // a [tema actual] y el fin de tema repetia la misma cancion.
++            var mountMusicSrc = playInfo.musicSrc;
++            var mountPlayId = playInfo.playId;
++            var mountInfo = _objectSpread({}, playInfo);
++            delete mountInfo.musicSrc;
++            this.setState(_objectSpread(_objectSpread({}, mountInfo), lastPlayStatus));
++            mountMusicSrc().then(function (val) {
++              if (_this8.state.playId && _this8.state.playId !== mountPlayId) return;
++              _this8.setState({
+                 musicSrc: val
+-              }, lastPlayStatus));
++              });
+             }, this.onAudioError);
+             break;
+           default:
 diff --git a/node_modules/navidrome-music-player/lib/index.js b/node_modules/navidrome-music-player/lib/index.js
-index 5650453..5e5fb61 100644
+index 5650453..65cc916 100644
 --- a/node_modules/navidrome-music-player/lib/index.js
 +++ b/node_modules/navidrome-music-player/lib/index.js
 @@ -1207,10 +1207,22 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
@@ -112,3 +136,27 @@ index 5650453..5e5fb61 100644
      });
      _defineProperty(_this, "getEnhanceAudio", function () {
        var _this3 = _this,
+@@ -2116,10 +2135,20 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
+         var lastPlayStatus = remember ? this.getLastPlayStatus() : {};
+         switch (_typeof(playInfo.musicSrc)) {
+           case 'function':
+-            playInfo.musicSrc().then(function (val) {
+-              _this8.setState(_objectSpread(_objectSpread({}, playInfo), {}, {
++            // FORK NAVIPLAY: fijar la lista de inmediato y no reescribirla
++            // cuando resuelva la URL. Si el append del Auto-DJ llega mientras
++            // la promesa esta pendiente, el setState tardio devolvia la lista
++            // a [tema actual] y el fin de tema repetia la misma cancion.
++            var mountMusicSrc = playInfo.musicSrc;
++            var mountPlayId = playInfo.playId;
++            var mountInfo = _objectSpread({}, playInfo);
++            delete mountInfo.musicSrc;
++            this.setState(_objectSpread(_objectSpread({}, mountInfo), lastPlayStatus));
++            mountMusicSrc().then(function (val) {
++              if (_this8.state.playId && _this8.state.playId !== mountPlayId) return;
++              _this8.setState({
+                 musicSrc: val
+-              }, lastPlayStatus));
++              });
+             }, this.onAudioError);
+             break;
+           default:
