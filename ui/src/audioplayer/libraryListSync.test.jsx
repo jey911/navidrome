@@ -121,6 +121,45 @@ it('no revierte la lista si la URL inicial resuelve después del append', async 
   await waitFor(() => expect(audio.src).toContain('/stream/c'))
 })
 
+it('no revierte la lista si una carga anterior resuelve tarde', async () => {
+  let calls = 0
+  let releaseFirst
+  const slowA = () => {
+    calls += 1
+    if (calls === 1) {
+      return new Promise((resolve) => {
+        releaseFirst = resolve
+      })
+    }
+    return Promise.resolve('/stream/a')
+  }
+  const a = track('a', slowA)
+  let audio
+  const onInstance = (instance) => {
+    audio = instance
+  }
+  const clearProps = (audioLists) => ({
+    ...playerProps(audioLists, onInstance),
+    clearPriorAudioLists: true,
+  })
+
+  const { rerender } = render(<MusicPlayer {...playerProps([], onInstance)} />)
+  // Primer tema manual: su URL (lista [a]) queda pendiente.
+  rerender(<MusicPlayer {...clearProps([a])} />)
+  await waitFor(() => expect(typeof releaseFirst).toBe('function'))
+  // El append del Auto-DJ sustituye la lista por 3 pistas.
+  rerender(<MusicPlayer {...clearProps([a, track('b', '/stream/b'), track('c', '/stream/c')])} />)
+
+  // La resolución vieja de [a] no debe devolver la lista a 1.
+  await act(async () => {
+    await Promise.resolve()
+    releaseFirst('/stream/a')
+    await Promise.resolve()
+  })
+  expect(audio.playByIndex(2)).toBe(true)
+  await waitFor(() => expect(audio.src).toContain('/stream/c'))
+})
+
 it('no repite el tema actual si el índice pedido no existe', async () => {
   let audio
   const a = track('a', '/stream/a')

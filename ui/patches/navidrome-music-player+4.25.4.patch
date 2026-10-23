@@ -1,5 +1,5 @@
 diff --git a/node_modules/navidrome-music-player/es/index.js b/node_modules/navidrome-music-player/es/index.js
-index dd68040..2d9c836 100644
+index dd68040..c0fdccb 100644
 --- a/node_modules/navidrome-music-player/es/index.js
 +++ b/node_modules/navidrome-music-player/es/index.js
 @@ -1201,10 +1201,22 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
@@ -28,7 +28,30 @@ index dd68040..2d9c836 100644
            }, _this.onAudioError);
            break;
          default:
-@@ -1415,17 +1427,24 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
+@@ -1377,10 +1389,19 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
+       }
+       switch (_typeof(initialInfo.musicSrc)) {
+         case 'function':
+-          initialInfo.musicSrc().then(function (musicSrc) {
+-            _this.setState(_objectSpread(_objectSpread({}, audioInfo), {}, {
++          // FORK NAVIPLAY: fijar audioInfo (incluida audioLists) de inmediato.
++          // Si se espera a la URL, una resolucion vieja de una lista anterior
++          // puede pisar la lista nueva y el fin de tema repite o se detiene.
++          var loadMusicSrc = initialInfo.musicSrc;
++          var loadPlayId = audioInfo.playId;
++          var immediateInfo = _objectSpread({}, audioInfo);
++          delete immediateInfo.musicSrc;
++          _this.setState(immediateInfo);
++          loadMusicSrc().then(function (musicSrc) {
++            if (_this.state.playId && _this.state.playId !== loadPlayId) return;
++            _this.setState({
+               musicSrc: musicSrc
+-            }));
++            });
+           }, _this.onAudioError);
+           break;
+         default:
+@@ -1415,17 +1436,24 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
      });
      _defineProperty(_this, "updatePlayIndex", function (playIndex) {
        var currentPlayIndex = _this.getCurrentPlayIndex();
@@ -55,7 +78,7 @@ index dd68040..2d9c836 100644
      });
      _defineProperty(_this, "getEnhanceAudio", function () {
        var _this3 = _this,
-@@ -2110,10 +2129,20 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
+@@ -2110,10 +2138,20 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
          var lastPlayStatus = remember ? this.getLastPlayStatus() : {};
          switch (_typeof(playInfo.musicSrc)) {
            case 'function':
@@ -80,7 +103,7 @@ index dd68040..2d9c836 100644
              break;
            default:
 diff --git a/node_modules/navidrome-music-player/lib/index.js b/node_modules/navidrome-music-player/lib/index.js
-index 5650453..65cc916 100644
+index 5650453..4397585 100644
 --- a/node_modules/navidrome-music-player/lib/index.js
 +++ b/node_modules/navidrome-music-player/lib/index.js
 @@ -1207,10 +1207,22 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
@@ -109,7 +132,30 @@ index 5650453..65cc916 100644
            }, _this.onAudioError);
            break;
          default:
-@@ -1421,17 +1433,24 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
+@@ -1383,10 +1395,19 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
+       }
+       switch (_typeof(initialInfo.musicSrc)) {
+         case 'function':
+-          initialInfo.musicSrc().then(function (musicSrc) {
+-            _this.setState(_objectSpread(_objectSpread({}, audioInfo), {}, {
++          // FORK NAVIPLAY: fijar audioInfo (incluida audioLists) de inmediato.
++          // Si se espera a la URL, una resolucion vieja de una lista anterior
++          // puede pisar la lista nueva y el fin de tema repite o se detiene.
++          var loadMusicSrc = initialInfo.musicSrc;
++          var loadPlayId = audioInfo.playId;
++          var immediateInfo = _objectSpread({}, audioInfo);
++          delete immediateInfo.musicSrc;
++          _this.setState(immediateInfo);
++          loadMusicSrc().then(function (musicSrc) {
++            if (_this.state.playId && _this.state.playId !== loadPlayId) return;
++            _this.setState({
+               musicSrc: musicSrc
+-            }));
++            });
+           }, _this.onAudioError);
+           break;
+         default:
+@@ -1421,17 +1442,24 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
      });
      _defineProperty(_this, "updatePlayIndex", function (playIndex) {
        var currentPlayIndex = _this.getCurrentPlayIndex();
@@ -136,7 +182,7 @@ index 5650453..65cc916 100644
      });
      _defineProperty(_this, "getEnhanceAudio", function () {
        var _this3 = _this,
-@@ -2116,10 +2135,20 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
+@@ -2116,10 +2144,20 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
          var lastPlayStatus = remember ? this.getLastPlayStatus() : {};
          switch (_typeof(playInfo.musicSrc)) {
            case 'function':
