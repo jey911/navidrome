@@ -329,9 +329,18 @@ export default function useCrossfade({
         })
       }
 
+      let switched
       try {
-        audio.playByIndex(target.index)
+        switched = audio.playByIndex(target.index)
       } catch {
+        lastFadeRef.current = { uuid: null }
+        finish(active)
+        return
+      }
+      if (switched === false) {
+        // La lista de la librería todavía no incluye el tema siguiente (por
+        // ejemplo, el append del Auto-DJ aún no llegó). Sin cambio real de
+        // pista: se corta el crossfade en vez de dejar el clon sonando.
         lastFadeRef.current = { uuid: null }
         finish(active)
         return

@@ -1,0 +1,114 @@
+diff --git a/node_modules/navidrome-music-player/es/index.js b/node_modules/navidrome-music-player/es/index.js
+index dd68040..c9d1ca6 100644
+--- a/node_modules/navidrome-music-player/es/index.js
++++ b/node_modules/navidrome-music-player/es/index.js
+@@ -1201,10 +1201,22 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
+       var info = _this.getPlayInfo(audioLists);
+       switch (_typeof(info.musicSrc)) {
+         case 'function':
+-          info.musicSrc().then(function (originMusicSrc) {
+-            _this.setState(_objectSpread(_objectSpread({}, info), {}, {
++          // FORK NAVIPLAY: fijar la lista de inmediato. Si se espera a que
++          // resuelva la URL, una respuesta lenta/vieja puede dejar audioLists
++          // desactualizado y playByIndex acaba repitiendo el tema actual.
++          var pendingMusicSrc = info.musicSrc;
++          var pendingPlayId = info.playId;
++          var nextInfo = _objectSpread({}, info);
++          delete nextInfo.musicSrc;
++          _this.setState(nextInfo, cb);
++          pendingMusicSrc().then(function (originMusicSrc) {
++            // Si ya se cambió de tema, esta URL es vieja: no pisotear la nueva.
++            if (_this.state.playId !== pendingPlayId) {
++              return;
++            }
++            _this.setState({
+               musicSrc: originMusicSrc
+-            }), cb);
++            }, cb);
+           }, _this.onAudioError);
+           break;
+         default:
+@@ -1415,17 +1427,24 @@ var ReactJkMusicPlayer = /*#__PURE__*/function (_PureComponent) {
+     });
+     _defineProperty(_this, "updatePlayIndex", function (playIndex) {
+       var currentPlayIndex = _this.getCurrentPlayIndex();
+-      if (playIndex !== undefined && currentPlayIndex !== playIndex) {
++      // FORK NAVIPLAY: un índice fuera de rango no se "clampea" al último
++      // tema (eso repetía la canción actual). Se ignora y se informa.
++      if (playIndex === undefined || playIndex < 0 || playIndex >= _this.state.audioLists.length) {
++        return false;
++      }
++      if (currentPlayIndex !== playIndex) {
+         _this.resetAudioPlayStatus().then(function () {
+           var currentPlayAudio = _this.state.audioLists[_this.getPlayIndex(playIndex)];
+           if (currentPlayAudio && currentPlayAudio[PLAYER_KEY]) {
+             _this.audioListsPlay(currentPlayAudio[PLAYER_KEY], true);
+           }
+         });
++        return true;
+       }
++      return false;
+     });
+     _defineProperty(_this, "playByIndex", function (index) {
+-      _this.updatePlayIndex(index);
++      return _this.updatePlayIndex(index);
+     });
+     _defineProperty(_this, "getEnhanceAudio", function () {
+       var _this3 = _this,
+diff --git a/node_modules/navidrome-music-player/lib/index.js b/node_modules/navidrome-music-player/lib/index.js
+index 5650453..5e5fb61 100644
+--- a/node_modules/navidrome-music-player/lib/index.js
++++ b/node_modules/navidrome-music-player/lib/index.js
+@@ -1207,10 +1207,22 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
+       var info = _this.getPlayInfo(audioLists);
+       switch (_typeof(info.musicSrc)) {
+         case 'function':
+-          info.musicSrc().then(function (originMusicSrc) {
+-            _this.setState(_objectSpread(_objectSpread({}, info), {}, {
++          // FORK NAVIPLAY: fijar la lista de inmediato. Si se espera a que
++          // resuelva la URL, una respuesta lenta/vieja puede dejar audioLists
++          // desactualizado y playByIndex acaba repitiendo el tema actual.
++          var pendingMusicSrc = info.musicSrc;
++          var pendingPlayId = info.playId;
++          var nextInfo = _objectSpread({}, info);
++          delete nextInfo.musicSrc;
++          _this.setState(nextInfo, cb);
++          pendingMusicSrc().then(function (originMusicSrc) {
++            // Si ya se cambió de tema, esta URL es vieja: no pisotear la nueva.
++            if (_this.state.playId !== pendingPlayId) {
++              return;
++            }
++            _this.setState({
+               musicSrc: originMusicSrc
+-            }), cb);
++            }, cb);
+           }, _this.onAudioError);
+           break;
+         default:
+@@ -1421,17 +1433,24 @@ var ReactJkMusicPlayer = exports["default"] = /*#__PURE__*/function (_PureCompon
+     });
+     _defineProperty(_this, "updatePlayIndex", function (playIndex) {
+       var currentPlayIndex = _this.getCurrentPlayIndex();
+-      if (playIndex !== undefined && currentPlayIndex !== playIndex) {
++      // FORK NAVIPLAY: un índice fuera de rango no se "clampea" al último
++      // tema (eso repetía la canción actual). Se ignora y se informa.
++      if (playIndex === undefined || playIndex < 0 || playIndex >= _this.state.audioLists.length) {
++        return false;
++      }
++      if (currentPlayIndex !== playIndex) {
+         _this.resetAudioPlayStatus().then(function () {
+           var currentPlayAudio = _this.state.audioLists[_this.getPlayIndex(playIndex)];
+           if (currentPlayAudio && currentPlayAudio[_player.PLAYER_KEY]) {
+             _this.audioListsPlay(currentPlayAudio[_player.PLAYER_KEY], true);
+           }
+         });
++        return true;
+       }
++      return false;
+     });
+     _defineProperty(_this, "playByIndex", function (index) {
+-      _this.updatePlayIndex(index);
++      return _this.updatePlayIndex(index);
+     });
+     _defineProperty(_this, "getEnhanceAudio", function () {
+       var _this3 = _this,
